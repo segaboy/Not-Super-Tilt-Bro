@@ -36,3 +36,8 @@ BootHush executable SHA-256: dcb00e0c0ee156f6c07bae26a516a6627688df2b571fedb0585
 The current NES core also has known CPU, graphics and audio approximations. Do not treat a successful bounded run as a complete or accurate playthrough. All hardware claims require separate evidence.
 
 This is an independent fan project and is not affiliated with Apple, Nintendo, or the Super Tilt Bro authors.
+
+
+### Additional NES arena observation
+
+A longer run of the same modified-header v1 image reached a frame showing an in-game arena with two characters and damage counters after 17,000,000 instructions and 1,749 modeled PPU frames. All 14 scheduled first-controller events were accepted. This demonstrates reaching the arena in the emulator, not a complete match or accurate PAL and two-controller behavior.
