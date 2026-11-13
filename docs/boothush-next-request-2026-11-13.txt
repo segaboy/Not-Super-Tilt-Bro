@@ -1,0 +1,98 @@
+We are porting the open-source NES game Super Tilt Bro to a standalone replacement ROM for the original Macintosh 128K. The ROM must run without Apple ROM or System code. We also want independently verified hardware research that can eventually benefit ClasSICK.
+
+Please advance BootHush to provide the capabilities needed to develop and test this port. Work in priority order, implement and test the highest-value capabilities you can, and report the exact remaining gaps.
+
+Local paths:
+- BootHush: C:\Repos\boothush
+- Port project: C:\Repos\Not-Super-Tilt-Bro
+- ClasSICK 0.97: C:\Repos\ClasSICK-0.97
+- NES test ROM: C:\Repos\.task-temp\super-tilt-bro-author-unrom.nes
+
+First read BootHush's AGENTS.md and current project direction, README, NES, Mac keyboard, capture and API documentation. Read the port project's docs\boothush-evidence.md, scripts\compare_nes_cycles.py, scripts\build_mac_controls.py and scripts\test_mac_controls.py. Inspect the working trees and preserve all existing work. Check current capabilities rather than assuming the observations below are still current.
+
+Already available and tested
+----------------------------
+
+At our last check, BootHush commit ecc9287 provided experimental mapper 2/submapper 1, PAL NES timing, two-controller scheduled input, cycle-aligned NES observations and stops, readiness-relative scheduling, and an opt-in NES controller-read witness. These features remain approximate; do not reimplement them as if they were missing.
+
+The port project's cycle-aligned comparison runs neutral, player-one-only, player-two-only, and combined inputs to a common requested NES cycle. The witness confirms guest reads on both ports and set bits on the active ports. It does not identify the affected fighter or establish game fidelity.
+
+The supplied NES ROM has SHA-256 5d045246f12d424c2c67ecda883c66d8d346f7b5396ed819ddb326f44dcb5aaa and identifies itself as Super Tilt Bro 2.6 beta 5. Its precise source revision is unknown. Do not claim it is the current upstream build or redistribute it.
+
+The port's original Mac controls probe boots in BootHush and moves a placeholder figure between three positions. Eight checks verify key presses, releases, movement bounds, framebuffer pixels and replay. It is not a playable game or an implementation of Super Tilt Bro mechanics, and it has not been tested on physical hardware.
+
+1. Per-frame and event-aligned capture
+--------------------------------------
+
+We need to see how a source-game action evolves over time, rather than compare only the final frame.
+
+- Add bounded capture of multiple complete NES frames in one run at requested frame numbers, modeled cycles, or offsets from a supported readiness condition. Include frame number, requested and actual guest cycles, and input ordering in a manifest.
+- Provide corresponding Mac captures at modeled VBL boundaries or clearly defined guest-cycle points, without a visible window.
+- Allow selected CPU RAM observations and, where applicable, PPU/OAM or Mac framebuffer observations alongside captures at declared boundaries. Report which observations are simultaneous and which are not.
+- Preserve existing capture options. Protect existing files, bound storage and event counts, and report missing captures, dropped events, truncation and early termination.
+- Define ordering when a capture, input, readiness condition and stop condition coincide. Be explicit about instruction-boundary rounding and whether a screenshot is the last completed frame.
+
+Acceptance: independent synthetic fixtures demonstrate repeated deterministic multi-frame capture, correctly ordered events, bounded output and negative/error cases. Apply the feature optionally to the pinned beta to capture a short neutral sequence and a single-controller movement sequence at comparable guest times. Do not label that result as physical accuracy or gameplay equivalence.
+
+2. Mac keyboard and gameplay diagnostics
+-----------------------------------------
+
+The current Mac probe observes that presses and releases reached its own diagnostic RAM. We need to debug more complex held keys and simultaneous input.
+
+- Add a bounded, opt-in witness correlating scheduled key transitions with the modeled M0110 queue, commands and replies, VIA shift-register activity, and guest consumption where observable.
+- Record guest cycle and relevant instruction context. Report queue overflow, dropped records, trace truncation and unapplied input.
+- Support reproducible multi-key holds, releases and overlapping transitions using the current model. Clearly distinguish emulator behavior from verified physical M0110 rollover and timing.
+- Add useful opt-in Mac VBL, selected framebuffer-write and fault observations needed to debug animation and redraw cost, without requiring mouse-specific tracing.
+
+Acceptance: original synthetic fixtures cover a press, hold, release, overlapping keys, queue limits and repeatability. Exercise the port's existing controls probe and prove that its scheduled releases are delivered to the guest. This is model evidence, not proof of physical-keyboard behavior.
+
+3. Mac sound and synchronized capture
+-------------------------------------
+
+Implement the original Macintosh 128K sound behavior needed for an independently authored game ROM, using eligible hardware documentation and original implementation. Scope the first slice to what can be supported and tested; explicitly report unknown timing and fidelity.
+
+- Allow headless capture with a documented sample format and guest-time relationship.
+- Report underruns, overruns, dropped samples and truncation.
+- Record enough timing information to align sound with Mac VBL/frame captures; improve NES audio/video alignment metadata where necessary for a comparison.
+- Require neither Apple ROM/System files nor a visible window.
+
+Acceptance: original fixture ROMs test silence, enable/disable and predictable tone or sample output; repeated captures are deterministic within declared model limits. State whether anyone listened. Synthetic waveform output alone is not evidence of hardware-faithful sound.
+
+4. Inspect game state and execution
+-----------------------------------
+
+We need to understand movement, jumping, attacks, hitboxes, damage and stocks for a source version that can eventually be matched to a build.
+
+- Add an opt-in, bounded NES witness for filtered instruction execution and selected memory and device reads/writes, with cycle, instruction context, mapper bank and interrupt context where available.
+- Support named observations or project-provided symbol/address maps without hard-coding Super Tilt Bro data into the emulator.
+- Record limits, dropped events, unsupported accesses and side effects. Do not silently infer data types or labels from addresses.
+- Preserve the current NES controller witness and use it alongside state observations.
+
+Acceptance: independently generated fixtures validate reads, writes, bank changes, filters, bounds, dropped-event reporting and repeatability. Demonstrate the workflow against the supplied beta only as an optional, hash-pinned observation. Its unknown revision means labels from the current source must not be assigned to it as fact.
+
+5. Source-to-target comparison workflow
+---------------------------------------
+
+Create a small reusable vertical slice rather than a speculative universal framework.
+
+- Define source and target profiles, ROM hashes, input scripts, guest readiness, capture points and emulator build identity.
+- Allow a port project to map a logical action to NES controller input and Mac keyboard input, and to define named observations for each side.
+- Compare selected outcomes and visual/audio event timing using explicit transformations, units, frame-rate mappings and tolerances. Retain raw observations.
+- Clearly distinguish unsupported features, missing readiness, invalid images, guest faults, timeouts, dropped input and comparison failures.
+- Demonstrate a simple movement scenario with original synthetic NES and Mac fixtures. Do not claim that the current placeholder Mac probe matches Super Tilt Bro.
+
+6. Validate capabilities against this game's needs
+--------------------------------------------------
+
+Investigate NES CPU, mapper, PAL, PPU and APU behavior actually exercised by the pinned game and, when available, a version-matched current source build. Fix demonstrated BootHush gaps and add focused regression tests. Report known approximations and do not characterize a successful arena entry as a complete playthrough or hardware validation. Mapper 30, Rainbow networking, persistent storage, save states and live input are conditional or later work unless evidence shows they block the offline slice.
+
+Constraints and delivery
+------------------------
+
+- Use BootHush for all emulator runs. Keep automation headless and bounded; do not silently use another emulator, change ROM headers, substitute a larger Mac, or alter source media.
+- Do not use Apple ROM or System executable code, Apple disassemblies, copied Apple assets, or uncertain-origin implementation sources. Follow ClasSICK's clean-room and provenance process for research intended to flow back into it.
+- Keep ROM images and generated captures out of Git. Use independent fixtures by default and retain source/license records for any third-party material.
+- The missing usable 68000 compiler and version-matched NES build are port build-environment/source issues, not automatically BootHush features. Do not bypass environment restrictions to address them.
+- Maintain and test existing CLI and API behavior; document and version any interface change. Expose new reusable functionality to other projects where justified by the working implementation.
+- Update BootHush's README, profile/API documentation and tests alongside code. Inspect Git status and history before committing or pushing, and preserve all unrelated work.
+- Report the implemented features, exact tests and commands, emulator and fixture identities, known limitations, and the specific capabilities the port can use next. If something remains blocked, explain the concrete reason and continue independent work.

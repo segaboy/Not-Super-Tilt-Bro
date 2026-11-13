@@ -2,7 +2,7 @@
 
 Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.com/sgadrat/super-tilt-bro) to the original Macintosh 128K. The goal is to boot a playable game directly from a replacement ROM without Apple ROM, System software, or other Apple executable code, and ultimately demonstrate it on original hardware. Research developed along the way should be reusable by [ClasSICK 0.97](https://github.com/segaboy/ClasSICK-0.97) and ClasSICK.
 
-**Status: research and feasibility. There is no playable Mac game or game ROM yet.** An existing ClasSICK ROM has reached its ready state in BootHush. An older NES game build reached its title and options screens in a modified-header experiment; the current upstream game has not been run.
+**Status: research and feasibility. A native Mac ROM now implements one isolated, source-derived running-entry transition; there is no playable game yet.** The screen and input experiment remains a placeholder, not a faithful movement implementation. The reviewed upstream game has not been built and run from its identified source revision. See [the running slice](docs/sinbad-running-slice.md).
 
 ## Approach
 
@@ -16,7 +16,7 @@ Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.co
 
 The reviewed upstream revision is [b132fd25add46f816e04be64c434386743b84b8b](https://github.com/sgadrat/super-tilt-bro/tree/b132fd25add46f816e04be64c434386743b84b8b). Super Tilt Bro is a two-player NES platform fighter. Its source combines 6502 assembly, 6502-targeted C, generated character templates and banked data. Its game state includes player position, velocity, hitboxes, damage and stocks. The default manifest names five characters and three tilesets.
 
-The default build declares a 1 MiB Rainbow cartridge, while the no-network UNROM build declares mapper 2/submapper 1 and 512 KiB PRG. These cartridge sizes are not the measured minimum size of a native Mac port. The upstream repository carries a WTFPL v2 license file; individual assets and third-party components still require review. ClasSICK 0.97 code is GPL-3.0-or-later. No upstream code or game assets have yet been copied here.
+The default build declares a 1 MiB Rainbow cartridge, while the no-network UNROM build declares mapper 2/submapper 1 and 512 KiB PRG. These cartridge sizes are not the measured minimum size of a native Mac port. The upstream repository carries a WTFPL v2 license file; individual assets and third-party components still require review. ClasSICK 0.97 code is GPL-3.0-or-later. The narrow running-entry behavior was translated from the reviewed game source; no upstream game art is included.
 
 ## Initial BootHush observations — 2026-11-13
 
@@ -25,7 +25,7 @@ BootHush executable SHA-256: dcb00e0c0ee156f6c07bae26a516a6627688df2b571fedb0585
 - A historical [v1 cartridge](https://github.com/retrobrews/nes-games/blob/master/super-tilt-bro.nes), SHA-256 ed0369a686a945c1f19c30aef9b6d02e184ff592876622610675c3474e2b3d8c, was rejected unchanged because its iNES header identifies PAL timing. A separate experimental copy changed header byte 9 to zero, SHA-256 bb6a9a64da28152ba138471f2a42ae4020312573779cb3f1b1995ecff4388eef. BootHush ran it with NTSC timing. The title screen appeared after 3 million instructions; scheduled A-button presses led to an options screen after 5 million instructions. All four input events were accepted. A full match, PAL behavior, audio accuracy and current-version gameplay were not established.
 - An existing ClasSICK 0.97 ROM candidate, SHA-256 faf37c6f96f8eb2ee6cf7a1e58a8b1b9538055d2fc89493c7419eeea816f6c8c, reached its documented stage 16 condition in the Mac 128K profile at cycle 56,836,682 with its fault word zero. This is a ClasSICK baseline, not a boot of this game.
 
-## BootHush feature requests
+## Initial BootHush feature requests (historical)
 
 1. Support the exact current upstream no-network mapper 2/submapper 1 512 KiB cartridge, including its actual banking and RAM requirements once the built image is inspected. Mapper 30 and Rainbow are separate targets.
 2. Accept and model PAL NES timing and header metadata accurately, rather than ignoring the timing flag. The experiment above is not PAL validation.
@@ -41,3 +41,67 @@ This is an independent fan project and is not affiliated with Apple, Nintendo, o
 ### Additional NES arena observation
 
 A longer run of the same modified-header v1 image reached a frame showing an in-game arena with two characters and damage counters after 17,000,000 instructions and 1,749 modeled PPU frames. All 14 scheduled first-controller events were accepted. This demonstrates reaching the arena in the emulator, not a complete match or accurate PAL and two-controller behavior.
+
+## BootHush update and native probe — 2026-11-13
+
+BootHush commit `0e2245d` adds experimental mapper 2/submapper 1, PAL timing, independent CLI input on both NES ports, multiple CPU inspections, and PPU/OAM inspection. These replace the earlier feature requests for basic support, not the need to validate the actual current source build and hardware accuracy. The separately obtained author-provided 2.6 beta 5 UNROM image has SHA-256 `5d045246f12d424c2c67ecda883c66d8d346f7b5396ed819ddb326f44dcb5aaa`; its source revision is unknown.
+
+A new Mac replacement ROM probe boots in BootHush, draws original geometric arena art, polls one M0110 key and moves one figure eight pixels. This is a startup, framebuffer and keyboard experiment, **not** a port of Super Tilt Bro's game logic or a playable fighter. It uses no Apple code, game assets or system software. The ClasSICK-derived reset sequence and license are recorded in [provenance](docs/provenance.md).
+
+Run on this workstation using Python 3.9+ and the current BootHush executable (the listed interpreter is the existing local installation):
+
+```powershell
+$py = 'C:\Repos\ClasSICK-0.97\.tools\llvm-mingw\llvm-mingw-20260908-ucrt-x86_64\python\bin\python.exe'
+$bh = 'C:\Repos\boothush\out\windows\boothush.exe'
+& $py scripts\build_mac_probe.py --output out\arena-probe-new.rom
+& $py scripts\test_mac_probe.py --boothush $bh
+& $py scripts\compare_nes_inputs.py --boothush $bh --rom 'C:\Repos\.task-temp\super-tilt-bro-author-unrom.nes' --report out\nes-report-new.json
+```
+
+Use a fresh output path each time. Generated ROMs and reports are local build artifacts. Tests use BootHush only and do not alter the input NES image. The Mac test checks neutral and scheduled-key pixels, readiness markers and identical repeated key runs. The NES comparison runs neutral, first-controller, second-controller, both and a repeated combined-input case; instruction-indexed runs may reach slightly different guest cycles. See [the evidence record](docs/boothush-evidence.md) for limitations. Mac sound and synchronized cross-platform scenarios remain open. The local 68000 cross compiler is Linux-only and WSL returned access denied in this environment, so this probe uses a narrow auditable instruction-byte emitter rather than that compiler.
+
+## Cycle-aligned comparison and controls probe
+
+BootHush commit `ecc9287` adds NES guest-cycle schedules, observations and
+controller-read witnesses. The project's `scripts/compare_nes_cycles.py` uses
+them to compare neutral, each controller, and combined input at a common
+requested guest cycle. Results and limitations are recorded in
+[BootHush evidence](docs/boothush-evidence.md).
+
+A second original Mac replacement-ROM probe demonstrates discrete left/right
+movement, press/release handling, and three-position bounds. It remains a
+placeholder graphics and input experiment, not Super Tilt Bro game logic.
+The test runs entirely headlessly on BootHush:
+
+```powershell
+& $py scripts\build_mac_controls.py --output out\controls-new.rom
+& $py scripts\test_mac_controls.py --boothush $bh
+& $py scripts\compare_nes_cycles.py --boothush $bh --rom 'C:\Repos\.task-temp\super-tilt-bro-author-unrom.nes' --report out\nes-cycle-new.json
+```
+
+The scripts require fresh output paths. The NES input is caller-supplied and
+is not distributed. No physical hardware or game-equivalence claim is made.
+
+## Source-derived running-entry slice
+
+The separate `sinbad-run-entry` ROM translates the PAL Sinbad running-entry
+state and initial horizontal velocity, with direction-change handling. It does
+not apply that velocity to position, implement the complete input table, or
+render original character art. The discrete three-position display remains a
+diagnostic. Details, attribution, RAM layout and limits are in
+[the running slice](docs/sinbad-running-slice.md).
+
+The following commands use the `$py` and `$bh` variables above. Both `--keep`
+and `--output` must name new directories; the latter retains captures from the
+locally supplied beta, so keep that directory private and out of Git.
+
+```powershell
+& $py scripts\build_mac_run_transition.py --output out\sinbad-run-entry-new.rom
+& $py scripts\test_mac_run_transition.py --boothush $bh --keep out\run-entry-evidence-new
+& $py scripts\capture_nes_actions.py --boothush $bh --rom 'C:\Repos\.task-temp\super-tilt-bro-author-unrom.nes' --output out\nes-actions-new
+```
+
+The recorded BootHush build, exact cycles, controller and keyboard witnesses,
+image comparisons, and remaining limitations appear in
+[the evidence record](docs/boothush-evidence.md). NES observations are from
+an unidentified beta revision and are not source-to-target validation.
