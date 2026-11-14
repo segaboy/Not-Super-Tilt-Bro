@@ -81,3 +81,10 @@ The original title lettering, button, pointer, polling glue and handoff are
 port-specific. They are not validated physical hardware behavior and should not
 be transferred back to ClasSICK without its source-eligibility and independent
 implementation process.
+
+The later native-C diagnostic uses the same attributed source-informed running
+and friction constants and the same previously credited startup sequence. Its
+deterministic test harness and C translation are local port work; it is not
+eligible as a ClasSICK implementation input. The Windows compiler is a separate
+tool dependency with its own archive identity and unresolved licensing review.
+See [native-C evidence](windows-native-c-evidence.md).

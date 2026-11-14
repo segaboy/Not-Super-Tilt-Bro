@@ -145,10 +145,15 @@ $bh = 'C:\Repos\boothush\out\windows\boothush.exe'
 & $py scripts\capture_movement_blog.py --boothush $bh --output out\blog-movement-new
 ```
 
-Both output paths must be new. Current missing capabilities include Mac sound
-and synchronized audio, and a usable native 68000 toolchain. A version-matched
+Both output paths must be new. At that checkpoint, missing capabilities included
+Mac sound, synchronized audio, and a usable native 68000 toolchain. A version-matched
 NES build remains unavailable due to missing supported build tools and the
 local WSL/MSYS access failures. BootHush's new filtered NES witness is useful
 once that build and its own symbols exist; it cannot validate the unknown beta
 against the reviewed source. The experimental comparison helper likewise
 requires an explicit, justified mapping before a source-to-target claim.
+
+The later Windows-native toolchain now compiles a separate source-informed C
+movement diagnostic; [the native-C record](windows-native-c-evidence.md)
+identifies its build and limits. The full game and source-matched NES comparison
+remain open.
