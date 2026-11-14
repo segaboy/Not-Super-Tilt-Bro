@@ -123,6 +123,16 @@ $bh = 'C:/Repos/.task-temp/boothush-replay-series-20261114-a/boothush.exe'
 & $py -B scripts/test_native_c_title.py --tool-bin $tools --boothush $bh --output C:/Repos/.task-temp/NEW-NATIVE-C-TITLE
 ```
 
+For later progress reporting, the `title-test/neutral.png` and
+`title-test/play_keys.png` files in that `-c` receipt directory are lossless
+512x342 conversions of its guest-only PBM frames; pixel equality was checked.
+Their PNG SHA-256 values are respectively
+`aabf25b889449d55e98e98a9ec965479c114c95255a9c08bff57116cb5f5589a` and
+`d07639ad8aeffeb5e4c6e99fafe4682b0d33ebae8f2084ea824c8d76f1211e6e`.
+They show the original-art modeled title and the post-Start keyboard scenario,
+not physical hardware or a completed game. They are generated local evidence,
+not committed assets.
+
 This remains an opt-in two-character experiment with placeholder graphics,
 experimental hardware mapping and incomplete match mechanics. Only player
 one's velocity step uses C; it is not a complete game or a hardware result.
