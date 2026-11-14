@@ -235,3 +235,9 @@ phase may affect the result. This does not isolate emulator versus guest timing
 and does not establish game completion. The independently written sampling
 idea and the controlled result may inform future input experiments; no game
 source is transferred to ClasSICK.
+
+BootHush independently added repeated 1,024- and 256-cycle edge cases to
+its optional pinned title-ROM integration. It verifies 64 modeled steps and
+repeatability for all three admitted title ROMs, while characterizing rather
+than requiring the current 256-cycle loss. See
+`C:/Repos/boothush/docs/mac-keyboard.md` for the tool-side setup and limits.
