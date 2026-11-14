@@ -178,6 +178,13 @@ their pinned fixtures. The test output and partial-build limitations are in
 `C:/Repos/boothush/docs/pc286-hard-disk-fault-20261114.md`. This is a
 cross-project regression, not a physical test.
 
+The follow-up BootHush write-failure build SHA-256
+`370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`
+also passed those four pinned port integration tests. Its saved test log and
+partial-build inputs are in
+`C:/Repos/.task-temp/boothush-pc-hard-fault-twins-20261114-c`; this adds no
+claim about game completeness or original hardware.
+
 Commands, source and compiler identities, images, input witnesses, states,
 pixel captures and mutant are in
 `C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/report.json`. The first
