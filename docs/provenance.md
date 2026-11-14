@@ -88,3 +88,9 @@ deterministic test harness and C translation are local port work; it is not
 eligible as a ClasSICK implementation input. The Windows compiler is a separate
 tool dependency with its own archive identity and unresolved licensing review.
 See [native-C evidence](windows-native-c-evidence.md).
+
+The later reusable C movement component retains the same source-informed
+constants and attribution. Its two-direction test harness, arithmetic and
+caller interface are local port work. It remains game-informed material and
+is not eligible as a ClasSICK implementation input merely because BootHush
+can execute it.
