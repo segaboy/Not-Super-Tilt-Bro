@@ -113,3 +113,24 @@ witnesses and captured frames; without the fixture it skips. Its canonical
 setup and limits are in `C:/Repos/boothush/docs/mac-keyboard.md`. It exercises
 the emulator integration with this experimental port, not physical input or
 ClasSICK release qualification.
+
+### Replay checkpoints, 2026-11-14
+
+With port source based on `2d9a137eab9542ba5063e5298cc893c361cc7a59` and
+the enhanced `scripts/test_mac_title.py`, a headless run used the same title
+ROM `d84d0ab3a1c981c2cbfb1a8ec039c189f3f83500ae90672f19b16ddb976df54e`
+and BootHush executable SHA-256
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`.
+The 16 title/handoff cases passed again. The 22 during-motion frames and
+86-byte state snapshots matched exactly when the recorded mouse samples were
+replayed. Trace SHA-256 is
+`42da5574c94f0e975d151b2a829790565e0f7571a8fc32cef13b0caeb3dd933a`;
+the concatenated replay frames SHA-256 is
+`0e41367bb760af9bf7843a3e669a809acf9181eb3b42b4fc9faa6226928ad2b1`.
+The ignored local receipts and exact commands are in
+`out/title-replay-test-20261114-a`; the test now requires BootHush with replay
+frame-series support. These are injected emulator events. The 256-cycle case
+still ends at X=250 rather than the intended X=288; physical input, a playable
+game and release qualification remain unproved. This reproducible capture
+workflow also supports ClasSICK testing without making game source a ClasSICK
+implementation input.

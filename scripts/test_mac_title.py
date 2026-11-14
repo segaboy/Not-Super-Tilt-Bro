@@ -43,9 +43,10 @@ def run(exe,rom,root,name,events,stop=7000000):
 
 def animation(exe,rom,root):
     frames=root/'in_motion.pbmseq'
+    trace=root/'in_motion.bhmouse'
     cmd=[str(exe),'--machine','mac128k','--rom',str(rom),'--cycles','1400000','--timeout-ms','20000',
          '--mouse-dcd-invert','3','--mouse-edge-cycles','1024','--mouse-motion','1000000:32:0',
-         '--capture-series',str(frames),'--capture-memory','0xb00:86']
+         '--mouse-record',str(trace),'--capture-series',str(frames),'--capture-memory','0xb00:86']
     for cycle in range(1000000,1110000,5000):cmd+=['--capture-cycle',str(cycle)]
     result=subprocess.run(cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if result.returncode:raise RuntimeError(result.stdout+result.stderr)
@@ -54,7 +55,20 @@ def animation(exe,rom,root):
     assert (series['requested'],series['processed'],series['pending'],series['dropped'])==(22,22,0,0)
     displayed=[int.from_bytes(bytes.fromhex(s['memory']['bytes'])[80:82],'big') for s in series['samples']]
     assert any(256<x<288 for x in displayed) and displayed[-1]==288,displayed
+    replay_frames=root/'in_motion_replay.pbmseq'
+    replay_cmd=[str(exe),'--machine','mac128k','--rom',str(rom),'--cycles','1400000','--timeout-ms','20000',
+                '--mouse-replay',str(trace),'--capture-series',str(replay_frames),'--capture-memory','0xb00:86']
+    for cycle in range(1000000,1110000,5000):replay_cmd+=['--capture-cycle',str(cycle)]
+    replay=subprocess.run(replay_cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    if replay.returncode:raise RuntimeError('title replay: '+replay.stdout+replay.stderr)
+    replay_data=json.loads(replay.stdout);replay_series=replay_data['frame_series']
+    assert replay_data['cycles']==data['cycles'] and replay_data['mouse']==data['mouse']
+    assert (replay_series['processed'],replay_series['pending'])==(22,0)
+    assert replay_frames.read_bytes()==frames.read_bytes()
+    assert [(s['cycle'],s['memory']) for s in replay_series['samples']]==[(s['cycle'],s['memory']) for s in series['samples']]
     (root/'in_motion.json').write_text(json.dumps({'command':cmd,'result':data,'displayed_x':displayed},indent=2)+'\n',encoding='utf-8')
+    (root/'in_motion_replay.json').write_text(json.dumps({'command':replay_cmd,'result':replay_data,
+        'trace_sha256':sha(trace.read_bytes()),'frames_sha256':sha(replay_frames.read_bytes())},indent=2)+'\n',encoding='utf-8')
     return displayed
 
 def test(exe,root):
