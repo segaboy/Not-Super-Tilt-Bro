@@ -72,3 +72,16 @@ the 286 did not execute this ROM or game logic. See BootHush's
 `docs/mac-pc286-bitmap-20261114.md` for the canonical cross-project receipt.
 Neither this display observation nor the source-derived port is an admitted
 ClasSICK implementation specification or release qualification.
+
+## Replay-capable BootHush regression
+
+On 2026-11-14, port source at `e1de1fe` repeated the 25 two-character
+scenarios with BootHush executable SHA-256
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`.
+The generated ROM remains
+`02f68482e598a90c57f22d8811459d1791f138bc47230ebf6e77f0da16df5a9c`;
+case evidence is in ignored `out/two-player-regression-20261114-a`.
+BootHush's separate title-ROM integration also passed against the exact
+`d84d0ab3a1c981c2cbfb1a8ec039c189f3f83500ae90672f19b16ddb976df54e`
+fixture built in `out/title-actions-20261114-a`. The title and arena results
+remain injected emulator observations, not a finished game or physical test.
