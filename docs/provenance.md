@@ -44,3 +44,11 @@ The subsequent two-key bitmap and last-pressed direction policy are original to
 this port and are not attributed to the source game or to historical Mac
 keyboard behavior. They operate within the already attributed source-derived
 movement experiment; see [overlap evidence](overlapping-direction-evidence.md).
+
+The optional jump experiment adapts the jump-squat count, jump and short-hop
+power magnitudes and the short-hop decision point from the same upstream game
+revision. The input mapping, height-based coordinate representation, gravity
+approximation, landing, tick integration and placeholder graphics are original
+to this port. Exact source file identities and distinctions are recorded in
+[jump evidence](jump-slice-evidence.md). Game-derived code and these observations
+are not automatically eligible for ClasSICK implementation.

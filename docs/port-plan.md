@@ -2,6 +2,8 @@
 
 Research date: 2026-11-13. This is a preliminary source review, not a complete audit or a completed port.
 
+Later 2026-11-14: the opt-in movement ROM adds a source-derived four-tick jumpsquat, jump-power magnitude and short-hop timing/magnitude with independently authored vertical integration, landing and placeholder rendering. Full and short jump, running while jumping, airborne retry and a second grounded jump were tested in BootHush. This remains an approximate slice, not a playable match or a source-matched NES comparison. [Evidence](jump-slice-evidence.md).
+
 2026-11-14 update: the VBL-paced movement experiment integrates velocity and now tracks two overlapping modeled direction keys. Its independently chosen last-pressed input policy restores a still-held direction after release; [evidence and limits](overlapping-direction-evidence.md). This remains a source-derived slice with original placeholder art, not a playable match or a physical-keyboard claim. The older transition-only status immediately below describes the earlier checkpoint.
 
 Progress update: the native ROM now contains a tested, source-derived PAL

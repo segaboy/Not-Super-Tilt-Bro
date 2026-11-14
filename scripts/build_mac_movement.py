@@ -17,6 +17,7 @@ from build_mac_run_transition import Emitter, FIGURE
 IFR = 0xeffbfe
 HELD, REPLY, ENTRY_COUNT, TICKS, VEL, POS, VBLS, PHASE, TIMEOUTS = [DIAG+x for x in (8,9,10,12,14,16,18,20,22)]
 HELD_MASK = DIAG + 21  # original experiment's right/left modeled-key bitmap
+JSTATE, JCLOCK, JVEL, JHEIGHT, JBUTTON, JCOUNT = [DIAG+x for x in (24,25,26,28,30,31)]
 
 class Asm(Emitter):
     def cond(self, inverse, target):
@@ -30,12 +31,15 @@ class Asm(Emitter):
     def setword(self, value, addr):
         self.put(bytes.fromhex('33fc')+be16(value & 0xffff)+be32(addr))
 
-def sprite_address(e, addr):
+def sprite_address(e, addr, jumping=False):
     # A0 = first row + left margin + (position's integer pixel / 8).
     e.word('3039',addr)                 # MOVE.W absolute,D0
     e.put(bytes.fromhex('e048 e648'))  # LSR.W #8,D0; LSR.W #3,D0
     e.put(bytes.fromhex('41f9')+be32(SCREEN+228*64+16))
     e.put(bytes.fromhex('d0c0'))       # ADDA.W D0,A0
+    if jumping:
+        e.word('3039',JHEIGHT)        # unsigned 8.8 height above floor
+        e.put(bytes.fromhex('e048 ed48 90c0')) # >>8; <<6; SUBA.W D0,A0
 
 def wait_shift(e, name):
     # Bounded polling prevents a missing modeled keyboard reply from hanging
@@ -53,7 +57,7 @@ def wait_shift(e, name):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build():
+def build(jumping=False):
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
@@ -63,7 +67,7 @@ def build():
     for y in range(252,260):
         for x in range(16,48):
             e.put(move_byte(0xff,SCREEN+y*64+x))
-    for off in range(8,24):
+    for off in range(8,32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     e.put(move_long(0x4e535434,DIAG)) # NST4
@@ -85,6 +89,9 @@ def build():
     wait_shift(e,'receive')
     for code,target in ((1,'right'),(3,'left'),(0x81,'right_up'),(0x83,'left_up')):
         e.if_d0(code,target)
+    if jumping:
+        e.if_d0(5,'jump_down')
+        e.if_d0(0x85,'jump_up')
     e.jump('pace')
     for label,direction,velocity in (('right',1,0x0100),('left',2,0xff00)):
         e.label(label)
@@ -97,6 +104,19 @@ def build():
         e.put(move_byte(direction,HELD))
         e.setword(velocity,VEL)
         e.word('5279',ENTRY_COUNT)
+        e.jump('pace')
+    if jumping:
+        e.label('jump_down')
+        e.if_byte(JBUTTON,1,'pace')
+        e.put(move_byte(1,JBUTTON))
+        e.if_byte(JSTATE,0,'jump_begin')
+        e.jump('pace')
+        e.label('jump_begin')
+        e.put(move_byte(1,JSTATE)+move_byte(0,JCLOCK))
+        e.put(bytes.fromhex('5239')+be32(JCOUNT))
+        e.jump('pace')
+        e.label('jump_up')
+        e.put(move_byte(0,JBUTTON))
         e.jump('pace')
     for label,direction in (('right_up',1),('left_up',2)):
         e.label(label)
@@ -166,7 +186,7 @@ def build():
     e.word('33c0',VEL)
     e.label('integrate')
     # Erase previous figure, update signed 8.8 position with bounds, redraw.
-    sprite_address(e,POS)
+    sprite_address(e,POS,jumping)
     for row in range(24):
         for x in range(3):
             e.put(bytes.fromhex('117c0000')+be16(row*64+x))
@@ -184,8 +204,51 @@ def build():
     e.put(bytes.fromhex('303ce000'))
     e.label('store_pos')
     e.word('33c0',POS)
+    if jumping:
+        e.if_byte(JSTATE,1,'jump_squat_tick')
+        e.if_byte(JSTATE,2,'jump_air_tick')
+        e.jump('draw')
+        e.label('jump_squat_tick')
+        e.put(bytes.fromhex('5239')+be32(JCLOCK))
+        e.if_byte(JCLOCK,4,'jump_takeoff')
+        e.jump('draw')
+        e.label('jump_takeoff')
+        e.setword(0x0480,JVEL)
+        e.put(move_byte(2,JSTATE))
+        e.jump('draw')
+        e.label('jump_air_tick')
+        # Approximate local height integration; the source game's complete
+        # gravity, collision and tick order remain unimplemented.
+        e.put(bytes.fromhex('5239')+be32(JCLOCK))
+        e.word('3039',JVEL)
+        e.put(bytes.fromhex('04400060'))
+        e.cmpw(0xfe00)
+        e.cond(0x6c,'jump_cap_fall') # BLT
+        e.jump('jump_save_velocity')
+        e.label('jump_cap_fall')
+        e.put(bytes.fromhex('303cfe00'))
+        e.label('jump_save_velocity')
+        e.if_byte(JCLOCK,8,'jump_check_short_hop')
+        e.jump('jump_store_velocity')
+        e.label('jump_check_short_hop')
+        e.if_byte(JBUTTON,0,'jump_short_hop')
+        e.jump('jump_store_velocity')
+        e.label('jump_short_hop')
+        e.put(bytes.fromhex('303c0102')) # local positive-up sign convention
+        e.label('jump_store_velocity')
+        e.word('33c0',JVEL)
+        e.word('3039',JHEIGHT)
+        e.word('d079',JVEL)
+        e.cmpw(0)
+        e.cond(0x6e,'jump_land') # BLE
+        e.word('33c0',JHEIGHT)
+        e.jump('draw')
+        e.label('jump_land')
+        e.setword(0,JVEL)
+        e.setword(0,JHEIGHT)
+        e.put(move_byte(0,JSTATE))
     e.label('draw')
-    sprite_address(e,POS)
+    sprite_address(e,POS,jumping)
     e.word('3039',POS)
     e.put(bytes.fromhex('e048 02400007')) # integer pixel modulo 8
     for shift in range(8):
