@@ -30,7 +30,7 @@ def main():
          '--key','3000000:5:1','--key','4400000:5:0','--key','5000000:3:1',
          '--key','5200000:6:1','--key','5500000:3:0','--key','5700000:6:0',
          '--video',str(video),'--video-fps','30','--video-frames','42','--video-start','500000',
-         '--capture-series',str(frames),'--capture-memory','0xb00:80',
+         '--capture-series',str(frames),'--capture-memory','0xb00:86',
          '--keyboard-witness',str(root/'keyboard.txt'),'--display-witness',str(root/'display.txt')]
     points=(8,12,25,28,32,40,50,60,70)
     for vbl in points:cmd+=['--capture-vbl',str(vbl)]
@@ -49,7 +49,7 @@ def main():
         frame=raw[sample['offset']:sample['offset']+sample['length']]
         data=bytes.fromhex(sample['memory']['bytes']);state=data[73]
         if state==1:
-            x=int.from_bytes(data[64:66],'big');y=int.from_bytes(data[66:68],'big');expected=title_pixels()
+            x=int.from_bytes(data[80:82],'big');y=int.from_bytes(data[82:84],'big');expected=title_pixels()
             for row,bits in enumerate(POINTER):
                 for col,bit in enumerate(bits):
                     if bit=='1':expected[(y+row)*64+(x+col)//8]^=0x80>>((x+col)%8)

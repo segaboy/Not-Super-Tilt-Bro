@@ -41,6 +41,22 @@ def run(exe,rom,root,name,events,stop=7000000):
     return {'x':x,'y':y,'state':state,'game_x':int.from_bytes(b[16:18],'big'),
             'p2x':int.from_bytes(b[38:40],'big'),'frame_sha256':sha(image)}
 
+def animation(exe,rom,root):
+    frames=root/'in_motion.pbmseq'
+    cmd=[str(exe),'--machine','mac128k','--rom',str(rom),'--cycles','1400000','--timeout-ms','20000',
+         '--mouse-dcd-invert','3','--mouse-edge-cycles','1024','--mouse-motion','1000000:32:0',
+         '--capture-series',str(frames),'--capture-memory','0xb00:86']
+    for cycle in range(1000000,1110000,5000):cmd+=['--capture-cycle',str(cycle)]
+    result=subprocess.run(cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+    if result.returncode:raise RuntimeError(result.stdout+result.stderr)
+    data=json.loads(result.stdout);series=data['frame_series']
+    assert data['status']=='cycle_limit' and data['mouse']['pending']==0
+    assert (series['requested'],series['processed'],series['pending'],series['dropped'])==(22,22,0,0)
+    displayed=[int.from_bytes(bytes.fromhex(s['memory']['bytes'])[80:82],'big') for s in series['samples']]
+    assert any(256<x<288 for x in displayed) and displayed[-1]==288,displayed
+    (root/'in_motion.json').write_text(json.dumps({'command':cmd,'result':data,'displayed_x':displayed},indent=2)+'\n',encoding='utf-8')
+    return displayed
+
 def test(exe,root):
     image,size=build(jumping=True,combat=True,two_player=True,title=True);rom=root/'title.rom'
     with rom.open('xb') as f:f.write(image)
@@ -58,6 +74,7 @@ def test(exe,root):
       'play_keys':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:0:1'),('key','4500000:0:0')],7000000),
       'p2_play_keys':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:5:1'),('key','4500000:5:0')],7000000),
       'motion_2048':([('mouse-edge-cycles','2048'),('mouse-motion','1000000:32:0')],4000000),
+      'motion_1024':([('mouse-edge-cycles','1024'),('mouse-motion','1000000:32:0')],4000000),
       'motion_256':([('mouse-edge-cycles','256'),('mouse-motion','1000000:32:0')],4000000),
       'flush_timeout':([('keyboard-fault','0x14:1:1:0'),('mouse-button','2000000:1'),('mouse-button','2400000:0')],7000000),
       'flush_retry':([('keyboard-fault','0x14:1:1:0'),('mouse-button','2000000:1'),('mouse-button','3000000:0'),
@@ -73,10 +90,12 @@ def test(exe,root):
     assert cases['play_keys']['game_x']>0x8000
     assert cases['p2_play_keys']['p2x']<0xa800
     assert cases['motion_2048']['x']==288
+    assert cases['motion_1024']['x']==288
     # motion_256 is a characterization, not an assertion that loss must persist.
     assert cases['flush_timeout']['state']==3 and cases['flush_retry']['state']==2
+    displayed=animation(exe,rom,root)
     summary={'status':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
-             'rom_used_through':0x104+size,'cases':cases}
+             'rom_used_through':0x104+size,'cases':cases,'in_motion_displayed_x':displayed}
     (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(summary,indent=2))
 

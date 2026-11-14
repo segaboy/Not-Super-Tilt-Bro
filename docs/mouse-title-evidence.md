@@ -76,3 +76,32 @@ retained under ignored `out/title-media-20261114-d`. Its GIF SHA-256 is
 `71e90211ca3d3bcf5ebd144bd675d70b2f03effd9993ec5be146c11a08c20256`;
 it shows modeled mouse movement, a click and the subsequent keyboard-driven
 figures. It is not a live physical input recording or a playable full match.
+
+## Follow-up: fewer redraws during polling
+
+On the same date a follow-up keeps a logical pointer separate from the last
+drawn pointer, refreshing after 16 pixel steps or 16 unchanged polling passes.
+The button hit test uses the logical position, so during the brief redraw delay
+the visible and selected positions can differ. This reduces redraw work during
+motion but is not a lossless mouse driver. The optimized 65,536-byte ROM
+SHA-256 is `d84d0ab3a1c981c2cbfb1a8ec039c189f3f83500ae90672f19b16ddb976df54e`,
+used through offset 35,822. The previous ROM and its results above remain a
+historical comparison, not the current output of the builder.
+
+The same BootHush executable and `scripts/test_mac_title.py` command retained
+16 scenarios plus a 22-sample during-motion check in ignored
+`out/title-deferred-test-20261114-d`. At 1,024 modeled cycles per edge, the
+32-pixel +X case now ends at X=288; the previous ROM ended at X=277 under the
+same schedule. Displayed-position samples include an intermediate X between
+256 and 288 before settling at 288, so the test does not merely check a
+single redraw after the entire movement. At 256 cycles the current result is
+still inaccurate; consult `summary.json` rather than assuming a reliable
+speed threshold. Both runs report 64 transitions and zero pending. This is a
+controlled emulator comparison, not a physical hardware qualification.
+
+The updated capture under ignored `out/title-deferred-media-20261114-b` uses
+the same scripted title-to-play scenario. Its GIF SHA-256 is
+`e7ae88d5c1f4ceca8ef5b3f626c5adefb3629cc42d6c548bfffb23f00545b43e`.
+Because the capture can occur while motion is still queued, the title-frame
+oracle uses the last drawn coordinates. An arbitrary VBL can still occur
+mid-redraw; no hardware-latched frame guarantee is implied.

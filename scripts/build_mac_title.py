@@ -13,6 +13,7 @@ from build_mac_probe import DIAG, SCREEN, be16, be32, move_byte
 
 X,Y=DIAG+64,DIAG+66
 XP,YP,XN,YN,ARMED,STATE,LOSSES=[DIAG+i for i in (68,69,70,71,72,73,74)]
+DISPLAY_X,DISPLAY_Y,DIRTY,IDLE=DIAG+80,DIAG+82,DIAG+84,DIAG+85
 PB=0xefe1fe
 SCCA,SCCB=0x9ffffa,0x9ffff8
 SCCWA,SCCWB=0xbffffb,0xbffff9
@@ -58,9 +59,9 @@ def toggle_pointer(e):
 def emit_pointer_subroutine(e):
     # Pre-shifted XOR bytes restore underlying pixels on the second call.
     e.label('title_toggle')
-    e.word('3039',Y);e.put(bytes.fromhex('ed48 41f9')+be32(SCREEN)+bytes.fromhex('d0c0'))
-    e.word('3039',X);e.put(bytes.fromhex('e648 d0c0'))
-    e.word('3039',X);e.put(bytes.fromhex('02400007'))
+    e.word('3039',DISPLAY_Y);e.put(bytes.fromhex('ed48 41f9')+be32(SCREEN)+bytes.fromhex('d0c0'))
+    e.word('3039',DISPLAY_X);e.put(bytes.fromhex('e648 d0c0'))
+    e.word('3039',DISPLAY_X);e.put(bytes.fromhex('02400007'))
     for shift in range(8):
         e.cmpw(shift);e.cond(0x66,'title_pointer_'+str(shift))
     e.put(bytes.fromhex('4e75'))
@@ -99,9 +100,8 @@ def emit_axis(e,name,previous,current,position,maximum,reverse=False):
         if reverse:direction=-direction
         e.word('3039',position);e.cmpw(maximum if direction>0 else 0)
         e.cond(0x66,name+'_save') # at boundary, retain current position
-        toggle_pointer(e)
         e.word('5279' if direction>0 else '5379',position)
-        toggle_pointer(e)
+        e.put(bytes.fromhex('5239')+be32(DIRTY))
         e.jump(name+'_save')
     e.label(name+'_save')
     e.put(bytes.fromhex('13f9')+be32(current)+be32(previous))
@@ -109,9 +109,9 @@ def emit_axis(e,name,previous,current,position,maximum,reverse=False):
 def emit_title(e,wait_shift):
     for offset,value in enumerate(title_pixels()):
         if value:e.put(move_byte(value,SCREEN+offset))
-    e.setword(256,X);e.setword(210,Y)
+    e.setword(256,X);e.setword(210,Y);e.setword(256,DISPLAY_X);e.setword(210,DISPLAY_Y)
     e.setword(0,DIAG+22) # keyboard transfer timeout count
-    for address in (XP,YP,XN,YN,ARMED,LOSSES):e.put(move_byte(0,address))
+    for address in (XP,YP,XN,YN,ARMED,LOSSES,DIRTY,IDLE):e.put(move_byte(0,address))
     e.put(move_byte(1,STATE)) # title ready
     # A and B reset external status; repeated while polling to sample live DCD.
     e.put(move_byte(0x10,SCCWA)+move_byte(0x10,SCCWB))
@@ -122,6 +122,21 @@ def emit_title(e,wait_shift):
     e.label('title_poll')
     e.put(move_byte(0x10,SCCWA)+move_byte(0x10,SCCWB))
     read_phase(e,'title_x',4,SCCA,XN);read_phase(e,'title_y',5,SCCB,YN)
+    # Keep sampling during motion; redraw after sixteen pixel steps or after the
+    # phase inputs have stayed unchanged for 16 polling passes.
+    e.word('1039',XN);e.word('b039',XP);e.cond(0x67,'title_activity')
+    e.word('1039',YN);e.word('b039',YP);e.cond(0x67,'title_activity')
+    e.if_byte(DIRTY,0,'title_axis')
+    e.label('title_idle_dirty');e.put(bytes.fromhex('5239')+be32(IDLE))
+    e.if_byte(IDLE,16,'title_redraw');e.jump('title_axis')
+    e.label('title_redraw');toggle_pointer(e)
+    e.word('3039',X);e.word('33c0',DISPLAY_X)
+    e.word('3039',Y);e.word('33c0',DISPLAY_Y)
+    toggle_pointer(e);e.put(move_byte(0,DIRTY)+move_byte(0,IDLE))
+    e.jump('title_axis')
+    e.label('title_activity');e.put(move_byte(0,IDLE))
+    e.put(bytes.fromhex('0c390010')+be32(DIRTY));e.cond(0x65,'title_redraw')
+    e.label('title_axis')
     emit_axis(e,'title_dx',XP,XN,X,506)
     emit_axis(e,'title_dy',YP,YN,Y,334,reverse=True)
     bit_test(e,PB,3,'title_released')
