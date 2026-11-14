@@ -19,12 +19,17 @@ HELD, REPLY, ENTRY_COUNT, TICKS, VEL, POS, VBLS, PHASE, TIMEOUTS = [DIAG+x for x
 HELD_MASK = DIAG + 21  # original experiment's right/left modeled-key bitmap
 JSTATE, JCLOCK, JVEL, JHEIGHT, JBUTTON, JCOUNT = [DIAG+x for x in (24,25,26,28,30,31)]
 ACLOCK, ABUTTON, FACING, DAMAGE, ATTACKS, HITS = [DIAG+x for x in (32,33,34,35,36,37)]
+P2POS, P2HELD, P2MASK, P2FACING, P2CHANGES = [DIAG+x for x in (38,40,41,42,43)]
+P2ACLOCK, P2ABUTTON, P1DAMAGE, P2ATTACKS, P2HITS = [DIAG+x for x in (44,45,46,47,48)]
+P2JSTATE, P2JCLOCK, P2JVEL, P2HEIGHT, P2JBUTTON, P2JCOUNT = [DIAG+x for x in (50,51,52,54,56,57)]
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
          0x1c38,0x381c,0x381c,0x381c,0x700e,0x700e,0,0)
 PUNCH = tuple(bits | (0x000f if 7 <= row <= 10 else 0) for row,bits in enumerate(FIGURE))
 PUNCH_LEFT = tuple(int(f'{bits:016b}'[::-1],2) for bits in PUNCH)
+DUMMY_PUNCH = tuple(bits | (0x000f if 7 <= row <= 10 else 0) for row,bits in enumerate(DUMMY))
+DUMMY_PUNCH_LEFT = tuple(int(f'{bits:016b}'[::-1],2) for bits in DUMMY_PUNCH)
 
 class Asm(Emitter):
     def cond(self, inverse, target):
@@ -38,14 +43,14 @@ class Asm(Emitter):
     def setword(self, value, addr):
         self.put(bytes.fromhex('33fc')+be16(value & 0xffff)+be32(addr))
 
-def sprite_address(e, addr, jumping=False):
+def sprite_address(e, addr, jumping=False, height_addr=JHEIGHT):
     # A0 = first row + left margin + (position's integer pixel / 8).
     e.word('3039',addr)                 # MOVE.W absolute,D0
     e.put(bytes.fromhex('e048 e648'))  # LSR.W #8,D0; LSR.W #3,D0
     e.put(bytes.fromhex('41f9')+be32(SCREEN+228*64+16))
     e.put(bytes.fromhex('d0c0'))       # ADDA.W D0,A0
     if jumping:
-        e.word('3039',JHEIGHT)        # unsigned 8.8 height above floor
+        e.word('3039',height_addr)   # unsigned 8.8 height above floor
         e.put(bytes.fromhex('e048 ed48 90c0')) # >>8; <<6; SUBA.W D0,A0
 
 def wait_shift(e, name):
@@ -64,9 +69,11 @@ def wait_shift(e, name):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False):
+def build(jumping=False,combat=False,two_player=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
+    if two_player and not combat:
+        raise ValueError('two-player experiment requires combat')
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
@@ -76,11 +83,14 @@ def build(jumping=False,combat=False):
     for y in range(252,260):
         for x in range(16,48):
             e.put(move_byte(0xff,SCREEN+y*64+x))
-    for off in range(8,38 if combat else 32 if jumping else 24):
+    for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
+    if two_player:
+        e.setword(0xa800,P2POS)
+        e.put(move_byte(2,P2FACING))
     e.put(move_long(0x4e535434,DIAG)) # NST4
     e.put(move_long(1,DIAG+4))
     e.jump('draw')
@@ -106,6 +116,10 @@ def build(jumping=False,combat=False):
     if combat:
         e.if_d0(7,'attack_down')
         e.if_d0(0x87,'attack_up')
+    if two_player:
+        for code,target in ((9,'p2_right'),(11,'p2_left'),(0x89,'p2_right_up'),(0x8b,'p2_left_up'),
+                            (13,'p2_attack_down'),(0x8d,'p2_attack_up'),(15,'p2_jump_down'),(0x8f,'p2_jump_up')):
+            e.if_d0(code,target)
     e.jump('pace')
     for label,direction,velocity in (('right',1,0x0100),('left',2,0xff00)):
         e.label(label)
@@ -155,6 +169,59 @@ def build(jumping=False,combat=False):
         e.label('attack_up')
         e.put(move_byte(0,ABUTTON))
         e.jump('pace')
+    if two_player:
+        e.label('p2_jump_down')
+        e.if_byte(P2JBUTTON,1,'pace')
+        e.put(move_byte(1,P2JBUTTON))
+        e.if_byte(P2ACLOCK,0,'p2_jump_attack_clear')
+        e.jump('pace')
+        e.label('p2_jump_attack_clear')
+        e.if_byte(P2JSTATE,0,'p2_jump_begin')
+        e.jump('pace')
+        e.label('p2_jump_begin')
+        e.put(move_byte(1,P2JSTATE)+move_byte(0,P2JCLOCK))
+        e.put(bytes.fromhex('5239')+be32(P2JCOUNT))
+        e.jump('pace')
+        e.label('p2_jump_up')
+        e.put(move_byte(0,P2JBUTTON))
+        e.jump('pace')
+        e.label('p2_attack_down')
+        e.if_byte(P2ABUTTON,1,'pace')
+        e.put(move_byte(1,P2ABUTTON))
+        e.if_byte(P2JSTATE,0,'p2_attack_grounded')
+        e.jump('pace')
+        e.label('p2_attack_grounded')
+        e.if_byte(P2ACLOCK,0,'p2_attack_begin')
+        e.jump('pace')
+        e.label('p2_attack_begin')
+        e.put(move_byte(1,P2ACLOCK))
+        e.put(bytes.fromhex('5239')+be32(P2ATTACKS))
+        e.jump('pace')
+        e.label('p2_attack_up')
+        e.put(move_byte(0,P2ABUTTON))
+        e.jump('pace')
+        for label,direction in (('p2_right',1),('p2_left',2)):
+            e.label(label)
+            for mask in ((1,3) if direction==1 else (2,3)):
+                e.if_byte(P2MASK,mask,'pace')
+            e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(P2MASK))
+            e.put(move_byte(direction,P2HELD)+move_byte(direction,P2FACING))
+            e.put(bytes.fromhex('5239')+be32(P2CHANGES))
+            e.jump('pace')
+        for label,direction in (('p2_right_up',1),('p2_left_up',2)):
+            e.label(label)
+            e.put(bytes.fromhex('08b9')+be16(direction-1)+be32(P2MASK))
+            e.if_byte(P2HELD,direction,label+'_active')
+            e.jump('pace')
+            e.label(label+'_active')
+            other=2 if direction==1 else 1
+            e.if_byte(P2MASK,other,label+'_restore')
+            e.put(move_byte(0,P2HELD))
+            e.jump('pace')
+            e.label(label+'_restore')
+            e.put(move_byte(other,P2HELD)+move_byte(other,P2FACING))
+            e.put(bytes.fromhex('5239')+be32(P2CHANGES))
+            e.jump('pace')
     for label,direction in (('right_up',1),('left_up',2)):
         e.label(label)
         e.put(bytes.fromhex('13c0')+be32(REPLY))
@@ -230,9 +297,23 @@ def build(jumping=False,combat=False):
     e.label('integrate')
     # Erase previous figure, update signed 8.8 position with bounds, redraw.
     sprite_address(e,POS,jumping)
+    if two_player:
+        e.put(bytes.fromhex('43e8')+be16((-18*64)&0xffff)) # A1 = old P1 meter
+        for row in range(6):
+            for x in range(3):
+                e.put(bytes.fromhex('137c0000')+be16(row*64+x))
     for row in range(24):
         for x in range(3):
             e.put(bytes.fromhex('117c0000')+be16(row*64+x))
+    if two_player:
+        sprite_address(e,P2POS,True,P2HEIGHT)
+        for row in range(24):
+            for x in range(3):
+                e.put(bytes.fromhex('117c0000')+be16(row*64+x))
+        e.put(bytes.fromhex('43e8')+be16((-18*64)&0xffff)) # A1 = old meter origin
+        for row in range(6):
+            for x in range(3):
+                e.put(bytes.fromhex('137c0000')+be16(row*64+x))
     e.word('3039',POS)
     e.word('d079',VEL) # ADD.W velocity,D0
     e.cmpw(0x1000)
@@ -247,6 +328,74 @@ def build(jumping=False,combat=False):
     e.put(bytes.fromhex('303ce000'))
     e.label('store_pos')
     e.word('33c0',POS)
+    if two_player:
+        e.if_byte(P2ACLOCK,0,'p2_movement_clear')
+        e.jump('p2_tick_done')
+        e.label('p2_movement_clear')
+        e.if_byte(P2HELD,1,'p2_tick_right')
+        e.if_byte(P2HELD,2,'p2_tick_left')
+        e.jump('p2_tick_done')
+        e.label('p2_tick_right')
+        e.word('3039',P2POS)
+        e.put(bytes.fromhex('06400100'))
+        e.cmpw(0xe000)
+        e.cond(0x63,'p2_clamp_right')
+        e.jump('p2_store')
+        e.label('p2_clamp_right')
+        e.put(bytes.fromhex('303ce000'))
+        e.jump('p2_store')
+        e.label('p2_tick_left')
+        e.word('3039',P2POS)
+        e.put(bytes.fromhex('04400100'))
+        e.cmpw(0x1000)
+        e.cond(0x64,'p2_clamp_left')
+        e.jump('p2_store')
+        e.label('p2_clamp_left')
+        e.put(bytes.fromhex('303c1000'))
+        e.label('p2_store')
+        e.word('33c0',P2POS)
+        e.label('p2_tick_done')
+        e.if_byte(P2JSTATE,1,'p2_jump_squat_tick')
+        e.if_byte(P2JSTATE,2,'p2_jump_air_tick')
+        e.jump('p2_jump_tick_done')
+        e.label('p2_jump_squat_tick')
+        e.put(bytes.fromhex('5239')+be32(P2JCLOCK))
+        e.if_byte(P2JCLOCK,4,'p2_jump_takeoff')
+        e.jump('p2_jump_tick_done')
+        e.label('p2_jump_takeoff')
+        e.setword(0x0480,P2JVEL)
+        e.put(move_byte(2,P2JSTATE))
+        e.jump('p2_jump_tick_done')
+        e.label('p2_jump_air_tick')
+        e.put(bytes.fromhex('5239')+be32(P2JCLOCK))
+        e.word('3039',P2JVEL)
+        e.put(bytes.fromhex('04400060'))
+        e.cmpw(0xfe00)
+        e.cond(0x6c,'p2_jump_cap_fall')
+        e.jump('p2_jump_save_velocity')
+        e.label('p2_jump_cap_fall')
+        e.put(bytes.fromhex('303cfe00'))
+        e.label('p2_jump_save_velocity')
+        e.if_byte(P2JCLOCK,8,'p2_jump_check_short')
+        e.jump('p2_jump_store_velocity')
+        e.label('p2_jump_check_short')
+        e.if_byte(P2JBUTTON,0,'p2_jump_short')
+        e.jump('p2_jump_store_velocity')
+        e.label('p2_jump_short')
+        e.put(bytes.fromhex('303c0102'))
+        e.label('p2_jump_store_velocity')
+        e.word('33c0',P2JVEL)
+        e.word('3039',P2HEIGHT)
+        e.word('d079',P2JVEL)
+        e.cmpw(0)
+        e.cond(0x6e,'p2_jump_land')
+        e.word('33c0',P2HEIGHT)
+        e.jump('p2_jump_tick_done')
+        e.label('p2_jump_land')
+        e.setword(0,P2JVEL)
+        e.setword(0,P2HEIGHT)
+        e.put(move_byte(0,P2JSTATE))
+        e.label('p2_jump_tick_done')
     if jumping:
         e.if_byte(JSTATE,1,'jump_squat_tick')
         e.if_byte(JSTATE,2,'jump_air_tick')
@@ -298,21 +447,27 @@ def build(jumping=False,combat=False):
         e.if_byte(ACLOCK,25,'attack_end')
         e.jump('draw_body')
         e.label('attack_hit_check')
+        if two_player:
+            e.word('3039',P2HEIGHT)
+            e.cmpw(0)
+            e.cond(0x67,'draw_body')
         e.if_byte(FACING,1,'attack_right')
         e.if_byte(FACING,2,'attack_left')
         e.jump('draw_body')
         e.label('attack_right')
-        e.word('3039',POS)
-        e.cmpw(0x8800)
+        e.word('3039',P2POS if two_player else POS)
+        if two_player: e.word('9079',POS) # target minus player, unsigned 8.8
+        e.cmpw(0x1000 if two_player else 0x8800)
         e.cond(0x64,'draw_body') # below the local target interval
-        e.cmpw(0x9800)
+        e.cmpw(0x2000 if two_player else 0x9800)
         e.cond(0x63,'draw_body') # above the local target interval
         e.jump('attack_apply')
         e.label('attack_left')
         e.word('3039',POS)
-        e.cmpw(0xb800)
+        if two_player: e.word('9079',P2POS) # player minus target
+        e.cmpw(0x1000 if two_player else 0xb800)
         e.cond(0x64,'draw_body')
-        e.cmpw(0xc800)
+        e.cmpw(0x2000 if two_player else 0xc800)
         e.cond(0x63,'draw_body')
         e.label('attack_apply')
         e.put(bytes.fromhex('5439')+be32(DAMAGE)) # diagnostic damage += 2
@@ -321,6 +476,41 @@ def build(jumping=False,combat=False):
         e.label('attack_end')
         e.put(move_byte(0,ACLOCK))
         e.label('draw_body')
+        if two_player:
+            e.if_byte(P2ACLOCK,0,'p2_attack_done')
+            e.put(bytes.fromhex('5239')+be32(P2ACLOCK))
+            e.if_byte(P2ACLOCK,7,'p2_attack_check')
+            e.if_byte(P2ACLOCK,25,'p2_attack_end')
+            e.jump('p2_attack_done')
+            e.label('p2_attack_check')
+            e.word('3039',JHEIGHT)
+            e.cmpw(0)
+            e.cond(0x67,'p2_attack_done') # prototype target must be at floor
+            e.if_byte(P2FACING,1,'p2_attack_right')
+            e.if_byte(P2FACING,2,'p2_attack_left')
+            e.jump('p2_attack_done')
+            e.label('p2_attack_right')
+            e.word('3039',POS)
+            e.word('9079',P2POS)
+            e.cmpw(0x1000)
+            e.cond(0x64,'p2_attack_done')
+            e.cmpw(0x2000)
+            e.cond(0x63,'p2_attack_done')
+            e.jump('p2_attack_apply')
+            e.label('p2_attack_left')
+            e.word('3039',P2POS)
+            e.word('9079',POS)
+            e.cmpw(0x1000)
+            e.cond(0x64,'p2_attack_done')
+            e.cmpw(0x2000)
+            e.cond(0x63,'p2_attack_done')
+            e.label('p2_attack_apply')
+            e.put(bytes.fromhex('5439')+be32(P1DAMAGE))
+            e.put(bytes.fromhex('5239')+be32(P2HITS))
+            e.jump('p2_attack_done')
+            e.label('p2_attack_end')
+            e.put(move_byte(0,P2ACLOCK))
+            e.label('p2_attack_done')
     sprite_address(e,POS,jumping)
     e.word('3039',POS)
     e.put(bytes.fromhex('e048 02400007')) # integer pixel modulo 8
@@ -355,21 +545,70 @@ def build(jumping=False,combat=False):
                         e.put(bytes.fromhex('117c')+be16(value)+be16(row*64+x))
                 e.jump('draw_dummy')
         e.label('draw_dummy')
-        for row,bits in enumerate(DUMMY):
-            for x,value in enumerate(((bits>>8)&255,bits&255)):
-                e.put(move_byte(value,SCREEN+(228+row)*64+37+x))
+        if two_player:
+            sprite_address(e,P2POS,True,P2HEIGHT)
+            e.word('3039',P2POS)
+            e.put(bytes.fromhex('e048 02400007'))
+            e.if_byte(P2ACLOCK,7,'p2_attack_render')
+            e.if_byte(P2ACLOCK,8,'p2_attack_render')
+            for prefix,figure in (('p2_shift',DUMMY),('p2_attack_shift',DUMMY_PUNCH),
+                                  ('p2_attack_left_shift',DUMMY_PUNCH_LEFT)):
+                if prefix=='p2_attack_shift':
+                    e.label('p2_attack_render')
+                    e.if_byte(P2FACING,2,'p2_attack_render_left')
+                if prefix=='p2_attack_left_shift':e.label('p2_attack_render_left')
+                for shift in range(8):
+                    e.cmpw(shift)
+                    e.cond(0x66,prefix+str(shift))
+                e.jump('fault')
+                for shift in range(8):
+                    e.label(prefix+str(shift))
+                    for row,bits in enumerate(figure):
+                        pixels=(bits<<8)>>shift
+                        for x,value in enumerate(((pixels>>16)&255,(pixels>>8)&255,pixels&255)):
+                            e.put(bytes.fromhex('117c')+be16(value)+be16(row*64+x))
+                    e.jump('draw_meter')
+            e.label('draw_meter')
+            sprite_address(e,P2POS,True,P2HEIGHT)
+            e.put(bytes.fromhex('43e8')+be16((-18*64)&0xffff))
+        else:
+            for row,bits in enumerate(DUMMY):
+                for x,value in enumerate(((bits>>8)&255,bits&255)):
+                    e.put(move_byte(value,SCREEN+(228+row)*64+37+x))
         # Original 8-cell hit indicator over the target: one 3x6 cell per
         # two damage points, capped visually at eight. The count itself wraps.
         for row in range(210,216):
-            for byte in range(3): e.put(move_byte(0,SCREEN+row*64+37+byte))
+            for byte in range(3):
+                if two_player:
+                    e.put(bytes.fromhex('137c0000')+be16((row-210)*64+byte))
+                else:
+                    e.put(move_byte(0,SCREEN+row*64+37+byte))
         for cell in range(8):
             mask=7 << (21-cell*3)
             parts=[(byte,(mask>>(16-byte*8))&255) for byte in range(3) if (mask>>(16-byte*8))&255]
             e.put(bytes.fromhex('0c39')+be16(2*(cell+1))+be32(DAMAGE))
-            e.put(bytes((0x65,6*len(parts)*8))) # BCS skips ORI.B stores
+            e.put(bytes((0x65,6*len(parts)*(6 if two_player else 8)))) # BCS skips ORI.B stores
             for row in range(210,216):
                 for byte,value in parts:
-                    e.put(bytes.fromhex('0039')+be16(value)+be32(SCREEN+row*64+37+byte))
+                    if two_player:
+                        e.put(bytes.fromhex('0029')+be16(value)+be16((row-210)*64+byte))
+                    else:
+                        e.put(bytes.fromhex('0039')+be16(value)+be32(SCREEN+row*64+37+byte))
+        if two_player:
+            # A separate original meter follows player one and reflects P2 hits.
+            sprite_address(e,POS,jumping)
+            e.put(bytes.fromhex('43e8')+be16((-18*64)&0xffff))
+            for row in range(6):
+                for byte in range(3):
+                    e.put(bytes.fromhex('137c0000')+be16(row*64+byte))
+            for cell in range(8):
+                mask=7 << (21-cell*3)
+                parts=[(byte,(mask>>(16-byte*8))&255) for byte in range(3) if (mask>>(16-byte*8))&255]
+                e.put(bytes.fromhex('0c39')+be16(2*(cell+1))+be32(P1DAMAGE))
+                e.put(bytes((0x65,6*len(parts)*6)))
+                for row in range(6):
+                    for byte,value in parts:
+                        e.put(bytes.fromhex('0029')+be16(value)+be16(row*64+byte))
         e.jump('wait_vbl')
     e.label('fault')
     e.put(bytes.fromhex('60fe'))

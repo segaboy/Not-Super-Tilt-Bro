@@ -2,6 +2,8 @@
 
 Research date: 2026-11-13. This is a preliminary source review, not a complete audit or a completed port.
 
+2026-11-14: A second independently controlled figure now moves, jumps and performs a limited jab in the opt-in prototype. Both figures can trade prototype hits or evade while airborne. It is not a complete match; see [two-character evidence](two-character-evidence.md). The owner directs a mouse-driven title/start screen and keyboard controls during play; implementing and testing that transition is the next port input task.
+
 Later 2026-11-14: an opt-in source-informed first-jab experiment adds an original stationary training target, visible active pose and a bounded two-point damage counter. Movement, jump, both attack directions, misses and repeated hits run in BootHush. This is a diagnostic combat slice, not a source-matched collision engine or playable match. [Evidence](jab-training-evidence.md).
 
 Later 2026-11-14: the opt-in movement ROM adds a source-derived four-tick jumpsquat, jump-power magnitude and short-hop timing/magnitude with independently authored vertical integration, landing and placeholder rendering. Full and short jump, running while jumping, airborne retry and a second grounded jump were tested in BootHush. This remains an approximate slice, not a playable match or a source-matched NES comparison. [Evidence](jump-slice-evidence.md).

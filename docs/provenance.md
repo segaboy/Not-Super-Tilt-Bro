@@ -65,3 +65,11 @@ implementation input.
 The subsequent eight-cell visible damage indicator is original port artwork
 and an original diagnostic presentation. It does not copy the game's damage
 display or establish the source game's damage or stock mechanics.
+
+The second-character experiment extends the attributed movement, jump and jab
+slice. Its second player's constant-speed horizontal movement, input mapping,
+simultaneous hit policy, bytewise composition and damage indicator are local
+design choices. The second jump reuses the same source-informed constants and
+local integration as the first. Its geometric figure is original to this port;
+no upstream art is included. [Evidence](two-character-evidence.md). These
+game-informed materials are not automatically eligible for ClasSICK.
