@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 import subprocess
 import tempfile
-from build_mac_movement import build
+from build_mac_movement import build,DAMAGE
+from build_mac_probe import be32
 from test_mac_combat import FIGURE,PUNCH,PUNCH_LEFT,DUMMY,HEADER
 
 # Frozen original placeholder rows for the second character's active poses.
@@ -90,7 +91,7 @@ def run(exe,rom,root,name,events,points,stop):
             right_hit=new['p2facing']==1 and 0x1000<=new['x']-new['p2x']<=0x2000
             left_hit=new['p2facing']==2 and 0x1000<=new['p2x']-new['x']<=0x2000
             if clock==7 and new['height']==0 and (right_hit or left_hit):
-                damage=(damage+2)&255;hits=(hits+1)&255
+                damage=min(damage+2,254);hits=(hits+1)&255
         assert (new['p2attack_clock'],new['p1damage'],new['p2hits'])==(clock,damage,hits),(name,old,new)
         state=old['p2jump_state'];jclock=old['p2jump_clock'];vel=old['p2jump_vel'];height=old['p2height']
         if old['phase']!=5:
@@ -172,8 +173,39 @@ def test(exe,root):
     assert cases['p2_left_bound']['observations'][-1]['p2x']==0x1000
     assert any(abs(s['p2x']-s['x'])<0x1000 for s in cases['crossing']['observations'])
     assert all(cases[n]['oracle_intervals']>=15 for n in scenarios if n not in ('p2_right_bound','p2_left_bound'))
+    saturated,size_saturated=build(jumping=True,combat=True,two_player=True,initial_damage=254)
+    saturated_rom=root/'damage-cap-fixture.rom'
+    with saturated_rom.open('xb') as f:f.write(saturated)
+    for name,events in (('p1_damage_cap',scenarios['moving_target_hit'][0]),
+                        ('p2_damage_cap',scenarios['p2_hit'][0])):
+        cases[name]=run(exe,saturated_rom,root,name,events,points,6200000)
+    assert cases['p1_damage_cap']['observations'][-1]['damage']==254
+    assert cases['p1_damage_cap']['observations'][-1]['hits']==1
+    assert cases['p2_damage_cap']['observations'][-1]['p1damage']==254
+    assert cases['p2_damage_cap']['observations'][-1]['p2hits']==1
+    near_cap,_=build(jumping=True,combat=True,two_player=True,initial_damage=252)
+    near_rom=root/'damage-near-cap-fixture.rom'
+    with near_rom.open('xb') as f:f.write(near_cap)
+    for name,events in (('p1_near_cap',scenarios['moving_target_hit'][0]),
+                        ('p2_near_cap',scenarios['p2_hit'][0])):
+        cases[name]=run(exe,near_rom,root,name,events,points,6200000)
+    assert cases['p1_near_cap']['observations'][-1]['damage']==254
+    assert cases['p1_near_cap']['observations'][-1]['hits']==1
+    assert cases['p2_near_cap']['observations'][-1]['p1damage']==254
+    assert cases['p2_near_cap']['observations'][-1]['p2hits']==1
+    # Negative control: change the P1 hit's cap comparison so 254 wraps.
+    needle=bytes.fromhex('0c3900fe')+be32(DAMAGE)
+    assert saturated.count(needle)==1
+    mutant=saturated.replace(needle,bytes.fromhex('0c3900fc')+be32(DAMAGE),1)
+    mutant_rom=root/'damage-wrap-control.rom'
+    with mutant_rom.open('xb') as f:f.write(mutant)
+    control=run(exe,mutant_rom,root,'damage_wrap_control',scenarios['moving_target_hit'][0],points,6200000)
+    assert control['observations'][-1]['damage']==0 and control['observations'][-1]['hits']==1
     summary={'result':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
-             'rom_bytes':len(image),'rom_used_through':0x104+size,'cases':cases}
+             'rom_bytes':len(image),'rom_used_through':0x104+size,'cases':cases,
+             'damage_cap_fixture_sha256':sha(saturated),'damage_cap_fixture_used_through':0x104+size_saturated,
+             'damage_near_cap_fixture_sha256':sha(near_cap),
+             'damage_wrap_control_sha256':sha(mutant)}
     (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({k:summary[k] for k in ('result','rom_sha256','boothush_sha256','rom_used_through')},indent=2))
 

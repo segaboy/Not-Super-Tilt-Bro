@@ -203,3 +203,13 @@ in the sibling `-a` directory failed because scheduled inputs were listed out
 of order; it is preserved. This demonstrates injected emulator behavior,
 not physical input or a completed playable game. BootHush's independently
 maintained optional integration test also covers this handoff.
+
+The subsequent damage-saturation change produces title ROM SHA-256
+`7121c504159e128d9ec7349213837c5d7b0dbdf8ead594e687334c63e2926ccd`,
+used through offset 36,886. The 22 title scenarios, in-motion replay and the
+mouse-to-keyboard replay pass in
+`C:/Repos/.task-temp/nstb-damage-cap-title-20261114-a`, using the same
+BootHush executable. The earlier ROMs and receipts remain historical. See
+[two-character evidence](two-character-evidence.md) for damage behavior and
+its test-only boundary fixture. BootHush's optional pinned title integration
+also passes with this new ROM.

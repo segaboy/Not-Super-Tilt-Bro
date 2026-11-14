@@ -61,7 +61,7 @@ source-informed squat/power parameters with local gravity/integration. Jabs
 are local 24-count approximations: the active pose appears at clocks 7–8,
 with one hit check at 7 over a 16–32-pixel facing interval, only while the
 target is at floor height. Each hit adds two to an eight-bit wrapping counter;
-the visible meter saturates at eight cells. Both attacks can hit in one exchange.
+at that checkpoint the visible meter saturated at eight cells. Both attacks can hit in one exchange.
 Composition overwrites byte-aligned regions in P1, P2, P2-meter, P1-meter
 order; it is not a general sprite compositor. No knockback, stocks, match end,
 menu, sound, physical input qualification or full game exists in this slice.
@@ -85,3 +85,26 @@ BootHush's separate title-ROM integration also passed against the exact
 `d84d0ab3a1c981c2cbfb1a8ec039c189f3f83500ae90672f19b16ddb976df54e`
 fixture built in `out/title-actions-20261114-a`. The title and arena results
 remain injected emulator observations, not a finished game or physical test.
+
+## Damage counter saturation
+
+On 2026-11-14, the local prototype changed both players' damage counters to
+saturate at 254 rather than wrap to zero; the eight-cell display still caps at
+eight cells. This is an original prototype rule, not a claim of upstream game
+equivalence. The independent hit counters remain eight-bit diagnostics and can
+wrap. The standard two-character ROM is now SHA-256
+`79ec8cf01b4156c5a34ae83c7e3a308a327802f56b6f187bfc66ec0a85e1a1d2`.
+
+The 25 previous scenarios and four additional cap fixtures pass with BootHush
+executable SHA-256
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`.
+The fixture initializes both counters at 254, then separately verifies a
+successful hit from each player leaves the target counter at 254 with a hit
+count of one. A mutated P1 cap comparison reproduces wrapping to zero.
+The other two fixtures initialize damage at 252 and confirm a hit reaches 254
+for either target. Guest states, whole-frame comparisons, input witnesses, ROM identities and the
+control are in `C:/Repos/.task-temp/nstb-damage-cap-two-20261114-c`.
+The single-player combat regression also passes in
+`C:/Repos/.task-temp/nstb-damage-cap-combat-20261114-a`. The starting value
+is a test-only builder option; ordinary ROMs start both counters at zero.
+These are bounded emulator scenarios, not a completed match or physical test.

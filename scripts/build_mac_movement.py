@@ -69,13 +69,15 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
         raise ValueError('two-player experiment requires combat')
     if title and not two_player:
         raise ValueError('title experiment requires two-player')
+    if initial_damage not in range(0,255,2) or (initial_damage and not two_player):
+        raise ValueError('initial damage is a two-player test fixture in 0..254')
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
@@ -99,6 +101,8 @@ def build(jumping=False,combat=False,two_player=False,title=False):
     if two_player:
         e.setword(0xa800,P2POS)
         e.put(move_byte(2,P2FACING))
+        if initial_damage:
+            e.put(move_byte(initial_damage,DAMAGE)+move_byte(initial_damage,P1DAMAGE))
     e.put(move_long(0x4e535434,DIAG)) # NST4
     e.put(move_long(1,DIAG+4))
     e.jump('draw')
@@ -478,7 +482,10 @@ def build(jumping=False,combat=False,two_player=False,title=False):
         e.cmpw(0x2000 if two_player else 0xc800)
         e.cond(0x63,'draw_body')
         e.label('attack_apply')
+        e.put(bytes.fromhex('0c3900fe')+be32(DAMAGE))
+        e.cond(0x66,'attack_damage_capped') # equal: retain the visible maximum
         e.put(bytes.fromhex('5439')+be32(DAMAGE)) # diagnostic damage += 2
+        e.label('attack_damage_capped')
         e.put(bytes.fromhex('5239')+be32(HITS))
         e.jump('draw_body')
         e.label('attack_end')
@@ -513,7 +520,10 @@ def build(jumping=False,combat=False,two_player=False,title=False):
             e.cmpw(0x2000)
             e.cond(0x63,'p2_attack_done')
             e.label('p2_attack_apply')
+            e.put(bytes.fromhex('0c3900fe')+be32(P1DAMAGE))
+            e.cond(0x66,'p2_damage_capped')
             e.put(bytes.fromhex('5439')+be32(P1DAMAGE))
+            e.label('p2_damage_capped')
             e.put(bytes.fromhex('5239')+be32(P2HITS))
             e.jump('p2_attack_done')
             e.label('p2_attack_end')
@@ -584,7 +594,7 @@ def build(jumping=False,combat=False,two_player=False,title=False):
                 for x,value in enumerate(((bits>>8)&255,bits&255)):
                     e.put(move_byte(value,SCREEN+(228+row)*64+37+x))
         # Original 8-cell hit indicator over the target: one 3x6 cell per
-        # two damage points, capped visually at eight. The count itself wraps.
+        # two damage points, capped visually at eight. Damage saturates at 254.
         for row in range(210,216):
             for byte in range(3):
                 if two_player:
