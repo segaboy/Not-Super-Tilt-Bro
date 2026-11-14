@@ -213,3 +213,25 @@ BootHush executable. The earlier ROMs and receipts remain historical. See
 [two-character evidence](two-character-evidence.md) for damage behavior and
 its test-only boundary fixture. BootHush's optional pinned title integration
 also passes with this new ROM.
+
+### Branchless phase sampling experiment
+
+An independently written register-based phase sampler replaced the title's
+per-bit branch sequence in an experiment. Its 65,536-byte ROM SHA-256 was
+`369b42dbab3ac4ddee10d4bdb8f906feca36002f10655db86159045f6c0b1072`,
+used through offset 36,774. With the same BootHush executable
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`,
+all 22 title/action cases and both replay checks passed. For a scripted
+32-pixel X movement, both the previous and experimental ROM ended at X=288
+with 2,048- and 1,024-cycle edges. At 256-cycle edges the previous ROM ended
+at X=250 and the experiment at X=248, rather than the intended X=288. The
+experiment was removed; the `7121c504...` ROM remains current. Commands,
+frames and guest state are retained in
+`C:/Repos/.task-temp/nstb-branchless-mouse-20261114-a`, with the baseline in
+`C:/Repos/.task-temp/nstb-damage-cap-title-20261114-a`.
+
+These are modeled observations, not a physical speed limit; changed sampling
+phase may affect the result. This does not isolate emulator versus guest timing
+and does not establish game completion. The independently written sampling
+idea and the controlled result may inform future input experiments; no game
+source is transferred to ClasSICK.
