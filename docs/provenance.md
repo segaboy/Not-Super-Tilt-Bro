@@ -30,3 +30,12 @@ The adaptation also builds on the GPL-3.0-or-later controls probe and ClasSICK
 reset sequence described above. See [the slice record](sinbad-running-slice.md)
 for the exact scope and source-file hashes. The beta ROM is not established to
 match this source, and its binaries and captures are not included in Git.
+
+The later movement experiment adds source-derived Sinbad velocity and grounded
+friction constants and movement-toward-target behavior from
+`game/templates/characters/std_friction_routines.asm` and `game/logic/utils.asm`
+at the same Super Tilt Bro revision. The generated arena, figure, input adapter,
+frame pacing and bounds are original to this project. See
+[movement evidence](movement-evidence.md) for the source hashes, limitations,
+and distinction between emulator and hardware observations. Its startup still
+uses the separately attributed GPL-3.0-or-later ClasSICK reset sequence.

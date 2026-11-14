@@ -2,7 +2,7 @@
 
 Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.com/sgadrat/super-tilt-bro) to the original Macintosh 128K. The goal is to boot a playable game directly from a replacement ROM without Apple ROM, System software, or other Apple executable code, and ultimately demonstrate it on original hardware. Research developed along the way should be reusable by [ClasSICK 0.97](https://github.com/segaboy/ClasSICK-0.97) and ClasSICK.
 
-**Status: research and feasibility. A native Mac ROM now implements one isolated, source-derived running-entry transition; there is no playable game yet.** The screen and input experiment remains a placeholder, not a faithful movement implementation. The reviewed upstream game has not been built and run from its identified source revision. See [the running slice](docs/sinbad-running-slice.md).
+**Status: research and feasibility. A native Mac ROM now implements a VBL-paced, source-derived horizontal movement slice, with acceleration and friction; there is no playable game yet.** Input, timing, bounds and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. See [the movement evidence](docs/movement-evidence.md).
 
 ## Approach
 
