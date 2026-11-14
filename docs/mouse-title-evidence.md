@@ -134,3 +134,24 @@ still ends at X=250 rather than the intended X=288; physical input, a playable
 game and release qualification remain unproved. This reproducible capture
 workflow also supports ClasSICK testing without making game source a ClasSICK
 implementation input.
+
+### Window-message title controls and polling experiment
+
+The subsequent `out/title-window-events-20261114-a` run retains the same ROM
+`d84d0ab3a1c981c2cbfb1a8ec039c189f3f83500ae90672f19b16ddb976df54e`
+and BootHush executable
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`.
+Eighteen scenarios pass, now including invisible window-message input: moving
+outside Start and clicking leaves the title active; returning, clicking Start,
+and pressing a gameplay key enters the arena and moves player one. Full frames,
+commands and keyboard witnesses are in that local directory. These are
+injected messages, not real mouse or human input.
+
+A separate attempted optimization skipped the axis transition table when the
+sampled phase was unchanged. It produced ROM SHA-256
+`a0f1f10adc4d2925a8c28eeea8eab1db485693c44d69cd8048c0ec6260ed85e9`;
+the previously passing 1,024-cycle case ended at X=287 rather than X=288, and
+the 256-cycle case ended at X=247. The test stopped on the regression; its
+per-scenario captures and commands remain in ignored
+`out/title-poll-fast-20261114-a`. The attempted change was removed. These
+timing-dependent model observations do not establish a physical speed limit.

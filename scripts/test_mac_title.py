@@ -18,7 +18,7 @@ def run(exe,rom,root,name,events,stop=7000000):
     frame=root/(name+'.pbm');witness=root/(name+'.keyboard')
     cmd=[str(exe),'--machine','mac128k','--rom',str(rom),'--cycles',str(stop),'--timeout-ms','20000',
          '--inspect','0xb00:80','--frame',str(frame),'--keyboard-witness',str(witness)]
-    if any(kind=='mouse-motion' for kind,_ in events):cmd+=['--mouse-dcd-invert','3']
+    if any(kind in ('mouse-motion','window-mouse') for kind,_ in events):cmd+=['--mouse-dcd-invert','3']
     for kind,value in events:cmd+=['--'+kind,value]
     result=subprocess.run(cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     if result.returncode:raise RuntimeError(name+': '+result.stdout+result.stderr)
@@ -83,6 +83,13 @@ def test(exe,root):
       'outside':([('mouse-motion','1500000:80:0'),('mouse-button','3000000:1'),('mouse-button','3400000:0')],7000000),
       'return_and_start':([('mouse-motion','1200000:80:0'),('mouse-motion','3000000:-80:0'),
                            ('mouse-button','5000000:1'),('mouse-button','5400000:0')],9000000),
+      'window_outside':([('window-mouse','1200000:256:210:0'),('window-mouse','2000000:336:210:0'),
+                         ('window-mouse','4000000:336:210:1'),('window-mouse','4400000:336:210:3')],7000000),
+      'window_return_and_play':([('window-mouse','1200000:256:210:0'),('window-mouse','2000000:336:210:0'),
+                                 ('window-mouse','4000000:336:210:1'),('window-mouse','4400000:336:210:3'),
+                                 ('window-mouse','5000000:256:210:0'),('window-mouse','7000000:256:210:1'),
+                                 ('window-mouse','7400000:256:210:3'),('key','9000000:0:1'),
+                                 ('key','10000000:0:0')],12000000),
       'start':([('mouse-button','2000000:1'),('mouse-button','2400000:0')],7000000),
       'title_keys_discarded':([('key','1000000:0:1'),('key','1300000:0:0'),('mouse-button','2000000:1'),('mouse-button','2400000:0')],7000000),
       'play_keys':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:0:1'),('key','4500000:0:0')],7000000),
@@ -100,6 +107,9 @@ def test(exe,root):
         assert (cases[name]['x'],cases[name]['y'],cases[name]['state'])==(*pos,1),(name,cases[name])
     assert (cases['outside']['x'],cases['outside']['state'])==(336,1)
     assert (cases['return_and_start']['x'],cases['return_and_start']['state'])==(256,2)
+    assert (cases['window_outside']['x'],cases['window_outside']['state'])==(336,1)
+    assert (cases['window_return_and_play']['x'],cases['window_return_and_play']['state'])==(256,2)
+    assert cases['window_return_and_play']['game_x']>0x8000
     assert cases['start']['state']==2 and cases['title_keys_discarded']['game_x']==0x8000
     assert cases['play_keys']['game_x']>0x8000
     assert cases['p2_play_keys']['p2x']<0xa800
