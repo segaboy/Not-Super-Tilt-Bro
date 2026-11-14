@@ -108,13 +108,14 @@ def test(exe,root):
     scenarios={
         'jump': ([(600000,2,1),(1200000,2,0)],points,6200000),
         'hold': ([(600000,2,1)],points,6200000),
+        'late_release': ([(600000,2,1),(2000000,2,0)],points,6200000),
         'airborne_retry': ([(600000,2,1),(900000,2,0),(1500000,2,1),(1800000,2,0)],points,6200000),
         'run_jump': ([(600000,0,1),(900000,2,1),(1400000,2,0),(3400000,0,0)],points,6200000),
         'second_jump': ([(600000,2,1),(900000,2,0),(6000000,2,1),(6300000,2,0)],
                         list(range(5,17))+list(range(18,54,2))+[55,60],8100000),
     }
     cases={name:run(exe,rom,root,name,*args) for name,args in scenarios.items()}
-    for name in ('jump','hold','airborne_retry','run_jump'):
+    for name in ('jump','hold','late_release','airborne_retry','run_jump'):
         obs=cases[name]['observations']
         assert any(x['jump_state']==1 for x in obs) and any(x['jump_state']==2 for x in obs),name
         assert any(x['height']>0 for x in obs),name
@@ -123,6 +124,7 @@ def test(exe,root):
     assert cases['hold']['observations'][-1]['button']==1
     assert any(x['clock']==8 and x['velocity']==0x0102 for x in cases['jump']['observations'])
     assert max(x['height'] for x in cases['jump']['observations']) < max(x['height'] for x in cases['hold']['observations'])
+    assert max(x['height'] for x in cases['late_release']['observations']) == max(x['height'] for x in cases['hold']['observations'])
     assert cases['airborne_retry']['observations'][-1]['button']==0
     assert max(x['x'] for x in cases['run_jump']['observations']) > 0x8000
     assert any(x['jumps']==2 and x['jump_state'] in (1,2) for x in cases['second_jump']['observations'])
