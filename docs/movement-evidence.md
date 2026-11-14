@@ -1,5 +1,7 @@
 # VBL-paced Sinbad movement experiment — 2026-11-14
 
+Coordination regression, later 2026-11-14: checkout `3db162d178f2706c324c19d7e52cd7597a6fe189` reran `scripts/test_mac_movement.py --boothush C:\Repos\boothush\out\windows\boothush.exe --keep out\coordination-movement-20261114`. The suite passed with ROM SHA-256 `bf7a065eb4d9a8141b7199ebe41eeb6d7abfef74f52d1d5e08948f5470294dd9` and BootHush executable SHA-256 `1f306c427d1a8c42b9d547b2b25a424e4b4e6a389a52ae5861d030e0fe43bc25`. Full generated observations remain in that ignored output directory. This repeats the existing modeled behavior; it does not establish hardware timing or game completion. The separately tested BootHush x64 firmware-model work at `7b11f985beaacd7151c73ab84dfbd7cfe85ee49a` has no effect on this Mac executable; its scope is documented in `C:\Repos\boothush\docs\x64-efi-memory-evidence-20261114.md`.
+
 This is a native, independently booting Mac ROM with one source-derived
 horizontal movement slice and original diagnostic art. It is **not a playable
 Super Tilt Bro match**, a source-matched NES comparison, or a physical Mac
