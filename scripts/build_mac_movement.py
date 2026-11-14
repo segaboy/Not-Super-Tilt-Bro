@@ -69,7 +69,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -78,6 +78,8 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         raise ValueError('title experiment requires two-player')
     if initial_damage not in range(0,255,2) or (initial_damage and not two_player):
         raise ValueError('initial damage is a two-player test fixture in 0..254')
+    if native_movement is not None and (not isinstance(native_movement,bytes) or not native_movement or len(native_movement)>0x2000):
+        raise ValueError('native movement must be nonempty bytes fitting the experimental ROM slot')
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
@@ -260,14 +262,27 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.word('5279',TICKS)
     if combat:
         e.if_byte(ACLOCK,0,'attack_movement_clear')
-        e.jump('friction')
+        e.jump('native_neutral' if native_movement is not None else 'friction')
         e.label('attack_movement_clear')
-    e.if_byte(HELD,1,'speed_right')
-    e.if_byte(HELD,2,'speed_left')
-    e.jump('friction')
+    e.if_byte(HELD,1,'native_right' if native_movement is not None else 'speed_right')
+    e.if_byte(HELD,2,'native_left' if native_movement is not None else 'speed_left')
+    e.jump('native_neutral' if native_movement is not None else 'friction')
     e.label('skip')
     e.put(move_byte(0,PHASE))
     e.jump('wait_vbl')
+    if native_movement is not None:
+        # Experimental C ABI bridge: the component also integrates a scratch
+        # position; the existing compositor integrates the live position after
+        # erasing the previous figure. DIAG+86 is dedicated to this scratch.
+        for name,direction in (('native_right',1),('native_left',-1),('native_neutral',0)):
+            e.label(name)
+            e.setword(0,DIAG+86)
+            e.put(bytes.fromhex('2f3c')+be32(direction & 0xffffffff))
+            e.put(bytes.fromhex('4879')+be32(VEL))
+            e.put(bytes.fromhex('4879')+be32(DIAG+86))
+            e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe000))
+            e.put(bytes.fromhex('4fef000c'))
+            e.jump('integrate')
     e.label('speed_right')
     e.word('3039',VEL)
     e.cmpw(0x0200)
@@ -634,11 +649,14 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     code=e.finish()
     if ENTRY+len(code)>65536:
         raise ValueError('ROM overflow')
+    if native_movement is not None and (ENTRY+len(code)>0xe000 or 0xe000+len(native_movement)>65536):
+        raise ValueError('native movement overlaps generated code or exceeds ROM')
     rom=bytearray(65536)
     rom[:8]=be32(0x4000)+be32(ROM_BASE+ENTRY)
     for vector in range(2,64):
         rom[vector*4:vector*4+4]=be32(e.labels['fault'])
     rom[ENTRY:ENTRY+len(code)]=code
+    if native_movement is not None:rom[0xe000:0xe000+len(native_movement)]=native_movement
     return bytes(rom),len(code)
 
 def main():

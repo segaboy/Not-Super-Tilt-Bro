@@ -46,8 +46,8 @@ The subsequent `guest/sinbad_movement.c` and header separate the movement step
 from the diagnostic. Two independent state pairs run the same component in
 opposite directions, accelerate for four calls, and coast to rest. The caller
 owns inputs, direction-entry behavior, pacing, and position bounds; the
-component's 16-bit position wraps. It is not yet linked into the title ROM and
-does not establish equivalent NES behavior. The source-informed constants and
+component's 16-bit position wraps. This separate probe does not establish
+equivalent NES behavior. The source-informed constants and
 their earlier attribution remain as above; this is game-informed code, not an
 eligible ClasSICK implementation input.
 
@@ -84,6 +84,49 @@ The per-case outputs are in
 `C:/Repos/.task-temp/nstb-title-post-component-20261114-a`; this remains the
 hand-emitted prototype, not a live integration of the C component.
 
+## Opt-in title with native player-one movement
+
+The builder now accepts a separately linked native component in an opt-in ROM
+slot beginning at offset `0xe000`. The existing emitter still owns title,
+keyboard, pacing, bounds, drawing and player two. After mouse Start, the
+player-one tick calls the C component for velocity; it writes the component's
+integrated position to a scratch word because the existing compositor must
+erase the old figure before applying velocity to the actual position. This
+bridge uses the Windows compiler's observed 68000 calling convention. It does
+not establish a general ABI or change the default title build.
+
+Two Windows builds of the 78-byte component matched, SHA-256
+`a65c5fa382bee316b916cd6c6af52c4a2591496aa762c346e784e7a8bca7d25c`.
+The resulting 65,536-byte ROM SHA-256 is
+`71de2f909f27348e23c28cb8a18ab869c04f79ee190092d43d8887e3093d2974`;
+the generated emitter code ends at offset 37,012 and the C slot at 57,422.
+In BootHush all 22 existing title scenarios passed, including mouse Start,
+keyboard movement, jump, attack, timeout/retry and replay. Six checkpoints
+across rightward input, release, leftward input and release matched the legacy
+title's movement state. Replacing the C acceleration immediate changed the
+final keyboard-driven X from 37,088 to 36,416, confirming this live path calls
+the C component. This is a mutation control, not a claim of a physical speed
+or NES equivalence. The separate default title regression also passed with
+its unchanged `7121c504...` ROM.
+
+Full commands, independently built component binaries, source and tool
+fingerprints, ROMs, per-case results, comparison samples and mutant are in
+`C:/Repos/.task-temp/nstb-native-c-title-20261114-c/report.json`; the default
+control is `C:/Repos/.task-temp/nstb-title-legacy-control-20261114-a`.
+The independent BootHush title integration tests passed for this ROM as well.
+Reproduce with:
+
+```powershell
+$py = 'C:/Users/segab/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe'
+$tools = 'C:/Repos/.task-temp/m68k-windows-native-20261114-a/x-tools-v3-win/m68k-unknown-elf/bin'
+$bh = 'C:/Repos/.task-temp/boothush-replay-series-20261114-a/boothush.exe'
+& $py -B scripts/test_native_c_title.py --tool-bin $tools --boothush $bh --output C:/Repos/.task-temp/NEW-NATIVE-C-TITLE
+```
+
+This remains an opt-in two-character experiment with placeholder graphics,
+experimental hardware mapping and incomplete match mechanics. Only player
+one's velocity step uses C; it is not a complete game or a hardware result.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell
@@ -93,7 +136,7 @@ $bh = 'C:/Repos/.task-temp/boothush-replay-series-20261114-a/boothush.exe'
 & $py -B scripts/test_windows_m68k_probe.py --tool-bin $tools --boothush $bh --output C:/Repos/.task-temp/NEW-NATIVE-C-PROBE
 ```
 
-The current title/game slice still uses its existing emitter. This probe has no
-keyboard, audio, full movement loop, source-matched NES comparison, physical
-hardware test, or complete match. BootHush's optional independent fixture test
+The standalone probe has no keyboard; the opt-in title test supplies modeled
+keyboard input. Neither has audio, a complete game loop, a source-matched NES
+comparison, physical hardware testing, or a complete match. BootHush's optional independent fixture test
 is documented in `C:/Repos/boothush/docs/mac-keyboard.md`.

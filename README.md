@@ -4,9 +4,10 @@ Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.co
 
 **Status: research and feasibility. An opt-in native Mac ROM now starts with a mouse-driven title and enters a keyboard-driven two-character slice with movement, jumping, prototype jabs and damage indicators; there is no playable game yet.** Input, timing, collision, gravity and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. Fast modeled mouse motion can be missed. See [mouse-title evidence](docs/mouse-title-evidence.md), [two-character evidence](docs/two-character-evidence.md), [jab evidence](docs/jab-training-evidence.md), [jump evidence](docs/jump-slice-evidence.md) and [movement evidence](docs/movement-evidence.md).
 
-A separate [Windows-compiled 68000 C probe](docs/windows-native-c-evidence.md)
-executes a small source-informed movement calculation in BootHush. It does not
-yet replace the title ROM's emitter or provide a complete game.
+A [Windows-compiled 68000 C movement component](docs/windows-native-c-evidence.md)
+also runs in an opt-in title ROM: mouse Start leads to keyboard-driven player
+one movement through that component. The rest of the prototype still uses the
+emitter; neither build is a complete game.
 
 ## Approach
 
@@ -62,7 +63,7 @@ $bh = 'C:\Repos\boothush\out\windows\boothush.exe'
 & $py scripts\compare_nes_inputs.py --boothush $bh --rom 'C:\Repos\.task-temp\super-tilt-bro-author-unrom.nes' --report out\nes-report-new.json
 ```
 
-Use a fresh output path each time. Generated ROMs and reports are local build artifacts. Tests use BootHush only and do not alter the input NES image. The Mac test checks neutral and scheduled-key pixels, readiness markers and identical repeated key runs. The NES comparison runs neutral, first-controller, second-controller, both and a repeated combined-input case; instruction-indexed runs may reach slightly different guest cycles. See [the evidence record](docs/boothush-evidence.md) for limitations. Mac sound and synchronized cross-platform scenarios remain open. At the time of this historical probe, a native Windows 68000 compiler was unavailable, so it used a narrow auditable instruction-byte emitter. A Windows compiler has since been exercised in the separate [native-C probe](docs/windows-native-c-evidence.md); the title ROM still uses the emitter and does not require WSL.
+Use a fresh output path each time. Generated ROMs and reports are local build artifacts. Tests use BootHush only and do not alter the input NES image. The Mac test checks neutral and scheduled-key pixels, readiness markers and identical repeated key runs. The NES comparison runs neutral, first-controller, second-controller, both and a repeated combined-input case; instruction-indexed runs may reach slightly different guest cycles. See [the evidence record](docs/boothush-evidence.md) for limitations. Mac sound and synchronized cross-platform scenarios remain open. At the time of this historical probe, a native Windows 68000 compiler was unavailable, so it used a narrow auditable instruction-byte emitter. A Windows compiler has since been exercised in the separate [native-C probe](docs/windows-native-c-evidence.md); the original title ROM uses the emitter, while an opt-in title build also calls native C; neither requires WSL.
 
 ## Cycle-aligned comparison and controls probe
 
