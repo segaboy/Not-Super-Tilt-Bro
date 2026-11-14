@@ -241,3 +241,37 @@ its optional pinned title-ROM integration. It verifies 64 modeled steps and
 repeatability for all three admitted title ROMs, while characterizing rather
 than requiring the current 256-cycle loss. See
 `C:/Repos/boothush/docs/mac-keyboard.md` for the tool-side setup and limits.
+
+### Modeled phase changes between guest reads
+
+To investigate why the fast case misses movement, the original guest-ROM and
+BootHush mouse witness were run with +32 X pixels at cycle 1,000,000 and
+edge spacings of 256 and 1,024 modeled cycles. The analysis counts modeled X
+phase transitions between successive guest SCC-A reads at `0x9ffffa` while
+the 64 transitions are in progress. These are emulator observations of this
+specific ROM and schedule, not physical timing measurements or proof of the
+sole cause of loss.
+
+| Edge spacing | Final guest X | Read intervals | Phase changes per interval |
+| --- | ---: | ---: | --- |
+| 256 cycles | 250 | 20 | 2 in two intervals, 3 in twelve, 4 in six |
+| 1,024 cycles | 288 | 85 | 0 in 21 intervals, 1 in 64 |
+
+The respective maximum observed read gaps during movement were 972 and 1,646
+modeled cycles; the larger slow-case gap shows that a maximum gap alone does
+not determine the result. Witnessed and unwitnessed runs matched guest status,
+cycles, PC, memory, mouse totals and full frames for each spacing; neither
+witness dropped events. The fast trace SHA-256 is
+`b40bf4e5015a439fea44244b27937d72f20ece042aef22f784e8080166a1972c`;
+the slow trace SHA-256 is
+`2fd89a32c819a445282f58edf85e29fbb72c2558a971226d8c7bf17eb530efa7`.
+The ROM and BootHush identities are `7121c504...` and `5d4f610e...`, as
+specified in the preceding evidence. Exact commands, frames, traces and report
+are in `C:/Repos/.task-temp/nstb-mouse-witness-20261114-b`.
+
+Reproduce with `scripts/characterize_mouse_sampling.py --boothush EXE --rom ROM
+--output NEW_DIRECTORY`; the script requires this pinned ROM and a fresh
+output directory outside the repository. Multi-edge intervals are consistent
+with information loss during polling, but do not distinguish guest design,
+model fidelity, sampling alignment or their interaction. The reusable finding
+is the event-count method and witness result, not game-derived implementation.
