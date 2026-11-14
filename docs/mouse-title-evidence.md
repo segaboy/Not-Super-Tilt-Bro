@@ -105,3 +105,11 @@ the same scripted title-to-play scenario. Its GIF SHA-256 is
 Because the capture can occur while motion is still queued, the title-frame
 oracle uses the last drawn coordinates. An arbitrary VBL can still occur
 mid-redraw; no hardware-latched frame guarantee is implied.
+
+BootHush commit `49f2d34` adds an optional integration regression against the
+exact optimized ROM hash above. With the fixture supplied, it repeats a
+mouse-title-to-keyboard-play sequence and compares guest reports, keyboard
+witnesses and captured frames; without the fixture it skips. Its canonical
+setup and limits are in `C:/Repos/boothush/docs/mac-keyboard.md`. It exercises
+the emulator integration with this experimental port, not physical input or
+ClasSICK release qualification.
