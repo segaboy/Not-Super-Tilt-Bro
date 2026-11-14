@@ -171,6 +171,13 @@ acceleration changed player two's final X from 47,328 to 46,656; the player-one
 mutation control also remained effective. The independent BootHush title
 integration checks passed with this ROM.
 
+BootHush's later fixed-disk fault-injection build SHA-256
+`703da7b4b3883f899cff6b17d221a3afce69bcf4d04e21d07718252ed2b6c0b0`
+also passed the two title and two native-C port integration tests against
+their pinned fixtures. The test output and partial-build limitations are in
+`C:/Repos/boothush/docs/pc286-hard-disk-fault-20261114.md`. This is a
+cross-project regression, not a physical test.
+
 Commands, source and compiler identities, images, input witnesses, states,
 pixel captures and mutant are in
 `C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/report.json`. The first
