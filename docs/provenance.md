@@ -52,3 +52,12 @@ approximation, landing, tick integration and placeholder graphics are original
 to this port. Exact source file identities and distinctions are recorded in
 [jump evidence](jump-slice-evidence.md). Game-derived code and these observations
 are not automatically eligible for ClasSICK implementation.
+
+The optional jab experiment was informed by the first Sinbad jab state and
+animation metadata at the same upstream revision, including a 24-count local
+timeline and a two-point direct-hit value. Its attack pose, training target,
+input and collision mapping, timing adaptation, damage storage and drawing
+are original local choices. No upstream sprites or art are included. See
+[jab evidence](jab-training-evidence.md) for exact source identities and
+limitations; neither the game-derived input nor this ROM is a ClasSICK
+implementation input.
