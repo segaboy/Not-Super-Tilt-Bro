@@ -358,6 +358,18 @@ def build(jumping=False,combat=False):
         for row,bits in enumerate(DUMMY):
             for x,value in enumerate(((bits>>8)&255,bits&255)):
                 e.put(move_byte(value,SCREEN+(228+row)*64+37+x))
+        # Original 8-cell hit indicator over the target: one 3x6 cell per
+        # two damage points, capped visually at eight. The count itself wraps.
+        for row in range(210,216):
+            for byte in range(3): e.put(move_byte(0,SCREEN+row*64+37+byte))
+        for cell in range(8):
+            mask=7 << (21-cell*3)
+            parts=[(byte,(mask>>(16-byte*8))&255) for byte in range(3) if (mask>>(16-byte*8))&255]
+            e.put(bytes.fromhex('0c39')+be16(2*(cell+1))+be32(DAMAGE))
+            e.put(bytes((0x65,6*len(parts)*8))) # BCS skips ORI.B stores
+            for row in range(210,216):
+                for byte,value in parts:
+                    e.put(bytes.fromhex('0039')+be16(value)+be32(SCREEN+row*64+37+byte))
         e.jump('wait_vbl')
     e.label('fault')
     e.put(bytes.fromhex('60fe'))

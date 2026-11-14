@@ -2,7 +2,7 @@
 
 Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.com/sgadrat/super-tilt-bro) to the original Macintosh 128K. The goal is to boot a playable game directly from a replacement ROM without Apple ROM, System software, or other Apple executable code, and ultimately demonstrate it on original hardware. Research developed along the way should be reusable by [ClasSICK 0.97](https://github.com/segaboy/ClasSICK-0.97) and ClasSICK.
 
-**Status: research and feasibility. An opt-in native Mac ROM now combines movement, jumping and a limited jab against a stationary training target; there is no playable game yet.** Input, timing, collision, gravity and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. See [jab evidence](docs/jab-training-evidence.md), [jump evidence](docs/jump-slice-evidence.md) and [movement evidence](docs/movement-evidence.md).
+**Status: research and feasibility. An opt-in native Mac ROM now combines movement, jumping and a limited jab against a stationary training target, with a visible damage indicator; there is no playable game yet.** Input, timing, collision, gravity and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. See [jab evidence](docs/jab-training-evidence.md), [jump evidence](docs/jump-slice-evidence.md) and [movement evidence](docs/movement-evidence.md).
 
 ## Approach
 

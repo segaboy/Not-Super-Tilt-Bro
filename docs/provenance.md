@@ -61,3 +61,7 @@ are original local choices. No upstream sprites or art are included. See
 [jab evidence](jab-training-evidence.md) for exact source identities and
 limitations; neither the game-derived input nor this ROM is a ClasSICK
 implementation input.
+
+The subsequent eight-cell visible damage indicator is original port artwork
+and an original diagnostic presentation. It does not copy the game's damage
+display or establish the source game's damage or stock mechanics.

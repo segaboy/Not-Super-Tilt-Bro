@@ -51,6 +51,9 @@ def check_pixels(frame,s):
     for row,bits in enumerate(DUMMY):
         offset=(228+row)*64+37
         expected[offset:offset+2]=bits.to_bytes(2,'big')
+    lit=min(s['damage']//2,8)
+    bar=(((1<<(lit*3))-1) << (24-lit*3)) if lit else 0
+    for y in range(210,216): expected[y*64+37:y*64+40]=bar.to_bytes(3,'big')
     assert frame[len(HEADER):]==expected,('unexpected combat pixels',s)
 
 def run(exe,rom,root,name,events,points,stop):
@@ -101,6 +104,11 @@ def test(exe,root):
     with rom.open('xb') as f:f.write(image)
     points=list(range(5,32))+[34,37,40,43,46]
     approaches=[(600000,0,1),(1900000,0,0)]
+    meter_events=list(approaches)
+    for index in range(9):
+        when=2600000+index*5000000
+        meter_events.extend(((when,3,1),(when+400000,3,0)))
+    meter_points=[5]+[(2600000+index*5000000+1600000)//130240 for index in range(9)]+[360]
     scenarios={
       'miss': ([(600000,3,1),(1000000,3,0)],points,6200000),
       'hit': (approaches+[(2600000,3,1),(3000000,3,0)],points,6200000),
@@ -111,6 +119,7 @@ def test(exe,root):
                    list(range(20,33))+list(range(56,75)),11000000),
       'left_hit': ([(600000,0,1),(5500000,0,0),(6300000,1,1),(6450000,1,0),(7200000,3,1),(7600000,3,0)],
                    [5]+list(range(56,87)),12000000),
+      'meter_cap': (meter_events,meter_points,48000000),
     }
     cases={n:run(exe,rom,root,n,*v) for n,v in scenarios.items()}
     assert cases['miss']['observations'][-1]['attacks']==1 and cases['miss']['observations'][-1]['damage']==0
@@ -125,6 +134,9 @@ def test(exe,root):
     assert cases['two_hits']['observations'][-1]['hits']==2
     assert cases['left_hit']['observations'][-1]['facing']==2 and cases['left_hit']['observations'][-1]['damage']==2
     assert any(s['attack_clock']==7 and s['hits']==1 and 0xb800<=s['x']<=0xc800 for s in cases['left_hit']['observations'])
+    meter=cases['meter_cap']['observations']
+    assert meter[-1]['attacks']==9 and meter[-1]['hits']==9 and meter[-1]['damage']==18
+    assert all(any(s['damage']==expected for s in meter) for expected in range(2,19,2))
     assert all(cases[n]['oracle_intervals']>=15 for n in ('miss','hit','wrong_facing','airborne','held_attack'))
     assert all(cases[n]['oracle_intervals']>=20 for n in ('two_hits','left_hit'))
     summary={'result':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
