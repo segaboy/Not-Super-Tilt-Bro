@@ -22,6 +22,7 @@ ACLOCK, ABUTTON, FACING, DAMAGE, ATTACKS, HITS = [DIAG+x for x in (32,33,34,35,3
 P2POS, P2HELD, P2MASK, P2FACING, P2CHANGES = [DIAG+x for x in (38,40,41,42,43)]
 P2ACLOCK, P2ABUTTON, P1DAMAGE, P2ATTACKS, P2HITS = [DIAG+x for x in (44,45,46,47,48)]
 P2JSTATE, P2JCLOCK, P2JVEL, P2HEIGHT, P2JBUTTON, P2JCOUNT = [DIAG+x for x in (50,51,52,54,56,57)]
+P2VEL = DIAG + 88  # experimental C movement velocity; separate from title scratch
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
@@ -69,7 +70,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -80,6 +81,8 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         raise ValueError('initial damage is a two-player test fixture in 0..254')
     if native_movement is not None and (not isinstance(native_movement,bytes) or not native_movement or len(native_movement)>0x2000):
         raise ValueError('native movement must be nonempty bytes fitting the experimental ROM slot')
+    if native_p2 and (native_movement is None or not two_player):
+        raise ValueError('native player two requires a native component and two-player profile')
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
@@ -102,6 +105,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(1,FACING))
     if two_player:
         e.setword(0xa800,P2POS)
+        if native_p2:e.setword(0,P2VEL)
         e.put(move_byte(2,P2FACING))
         if initial_damage:
             e.put(move_byte(initial_damage,DAMAGE)+move_byte(initial_damage,P1DAMAGE))
@@ -220,6 +224,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
                 e.if_byte(P2MASK,mask,'pace')
             e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(P2MASK))
             e.put(move_byte(direction,P2HELD)+move_byte(direction,P2FACING))
+            if native_p2:e.setword(0x0100 if direction==1 else 0xff00,P2VEL)
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
         for label,direction in (('p2_right_up',1),('p2_left_up',2)):
@@ -234,6 +239,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.jump('pace')
             e.label(label+'_restore')
             e.put(move_byte(other,P2HELD)+move_byte(other,P2FACING))
+            if native_p2:e.setword(0x0100 if other==1 else 0xff00,P2VEL)
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
     for label,direction in (('right_up',1),('left_up',2)):
@@ -359,9 +365,28 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.if_byte(P2ACLOCK,0,'p2_movement_clear')
         e.jump('p2_tick_done')
         e.label('p2_movement_clear')
-        e.if_byte(P2HELD,1,'p2_tick_right')
-        e.if_byte(P2HELD,2,'p2_tick_left')
-        e.jump('p2_tick_done')
+        if native_p2:
+            e.if_byte(P2HELD,1,'p2_native_right')
+            e.if_byte(P2HELD,2,'p2_native_left')
+            e.jump('p2_native_neutral')
+            for label,direction in (('p2_native_right',1),('p2_native_left',-1),('p2_native_neutral',0)):
+                e.label(label)
+                e.setword(0,DIAG+86)
+                e.put(bytes.fromhex('2f3c')+be32(direction & 0xffffffff))
+                e.put(bytes.fromhex('4879')+be32(P2VEL))
+                e.put(bytes.fromhex('4879')+be32(DIAG+86))
+                e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe000))
+                e.put(bytes.fromhex('4fef000c'))
+                e.jump('p2_native_integrate')
+            e.label('p2_native_integrate')
+            e.word('3039',P2POS);e.word('d079',P2VEL)
+            e.cmpw(0x1000);e.cond(0x64,'p2_clamp_left')
+            e.cmpw(0xe000);e.cond(0x63,'p2_clamp_right')
+            e.jump('p2_store')
+        else:
+            e.if_byte(P2HELD,1,'p2_tick_right')
+            e.if_byte(P2HELD,2,'p2_tick_left')
+            e.jump('p2_tick_done')
         e.label('p2_tick_right')
         e.word('3039',P2POS)
         e.put(bytes.fromhex('06400100'))

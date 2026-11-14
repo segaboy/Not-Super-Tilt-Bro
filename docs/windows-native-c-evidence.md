@@ -141,8 +141,64 @@ not physical hardware or a completed game. They are generated local evidence,
 not committed assets.
 
 This remains an opt-in two-character experiment with placeholder graphics,
-experimental hardware mapping and incomplete match mechanics. Only player
-one's velocity step uses C; it is not a complete game or a hardware result.
+experimental hardware mapping and incomplete match mechanics. In this earlier
+profile only player one's velocity step uses C; it is not a complete game or a
+hardware result.
+
+## Opt-in native movement for both players
+
+The `--native-p2` test build also calls the same source-informed C movement
+component for player two. It retains the prototype's keyboard mapping and
+last-pressed direction policy. Player two now accelerates and coasts rather
+than using the earlier fixed one-pixel step; the local attack lock pauses its
+movement and velocity update. This is a port design choice, not proof of
+source-game equivalence. Player one and player two have separate velocity
+words and use the component sequentially; their display remains original
+placeholder art. The older default and player-one-C ROMs remain byte-identical.
+
+Two independently compiled copies of the 78-byte component matched. The
+65,536-byte combined ROM SHA-256 is
+`b4d75d3839e36cdfb5233b521b0a3474256ebe932525f1aa36a16b418884b126`;
+the emitted code ends at offset 37,220 and the component ends at 57,422.
+With BootHush SHA-256
+`62daf36a8d1e034667fbd73dd09a2a6134a6a0144ea56010d327b41fd110d9da`,
+the existing 22 mouse-title and keyboard scenarios passed. A separate 32-frame
+VBL series verified the completed-frame pixel oracle and 27 adjacent player-two
+movement intervals, including both directions and coasting. Four cycle-based
+input-state checkpoints checked overlapping keys and restoration of the held
+direction. Simultaneous player-one/player-two input moved both. A mutant
+acceleration changed player two's final X from 47,328 to 46,656; the player-one
+mutation control also remained effective. The independent BootHush title
+integration checks passed with this ROM.
+
+Commands, source and compiler identities, images, input witnesses, states,
+pixel captures and mutant are in
+`C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/report.json`. The first
+trace attempt in sibling `-b` requested 37 frames, exceeding BootHush's
+32-frame cap, and was rejected before the guest ran. In `-d`, an arbitrary
+cycle capture interrupted a framebuffer redraw, so treating it as a completed
+frame failed the pixel oracle. The corrected overlap check tests state only at
+those arbitrary cycles; the VBL series and settled scenarios separately check
+pixels. Neither result establishes tear-free physical presentation.
+
+`C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/simultaneous-move.png`
+is a lossless, pixel-verified 512x342 conversion of the modeled simultaneous
+movement frame. Its PNG SHA-256 is
+`fbc0163e48c58fc608591d3ac8c25881029d3a98f341bcc39fe6b2d45d72830b`;
+the source PBM SHA-256 is
+`e6acb7be465283cc3ea726ff4109aadb27765239374d8f03f2d6525e13eca5d3`.
+It is generated guest-only evidence, not a physical demonstration or a
+committed asset. Reproduce the experiment with the previous `$py`, `$tools`
+and `$bh` settings and a fresh output directory:
+
+```powershell
+& $py -B scripts/test_native_c_title.py --tool-bin $tools --boothush $bh --output C:/Repos/.task-temp/NEW-DUAL-C-TITLE --native-p2
+```
+
+This still lacks a complete match, full game mechanics, source-matched NES
+comparison, audio, verified physical keyboard behavior and original-hardware
+testing. Game-informed code is not automatically a ClasSICK implementation
+input.
 
 Reproduce with a fresh output directory outside the repository:
 

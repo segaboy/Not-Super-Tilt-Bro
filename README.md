@@ -5,9 +5,9 @@ Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.co
 **Status: research and feasibility. An opt-in native Mac ROM now starts with a mouse-driven title and enters a keyboard-driven two-character slice with movement, jumping, prototype jabs and damage indicators; there is no playable game yet.** Input, timing, collision, gravity and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. Fast modeled mouse motion can be missed. See [mouse-title evidence](docs/mouse-title-evidence.md), [two-character evidence](docs/two-character-evidence.md), [jab evidence](docs/jab-training-evidence.md), [jump evidence](docs/jump-slice-evidence.md) and [movement evidence](docs/movement-evidence.md).
 
 A [Windows-compiled 68000 C movement component](docs/windows-native-c-evidence.md)
-also runs in an opt-in title ROM: mouse Start leads to keyboard-driven player
-one movement through that component. The rest of the prototype still uses the
-emitter; neither build is a complete game.
+also runs in an opt-in title ROM: mouse Start leads to keyboard-driven
+movement through that component for both players. The rest of the prototype
+still uses the emitter; neither build is a complete game.
 
 ## Approach
 

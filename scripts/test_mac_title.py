@@ -107,8 +107,8 @@ def handoff_replay(exe,rom,root):
     return {'trace_sha256':sha(trace.read_bytes()),'frames_sha256':sha(first[2]),
             'final_game_x':int.from_bytes(final[16:18],'big')}
 
-def test(exe,root,native_movement=None):
-    image,size=build(jumping=True,combat=True,two_player=True,title=True,native_movement=native_movement);rom=root/'title.rom'
+def test(exe,root,native_movement=None,native_p2=False):
+    image,size=build(jumping=True,combat=True,two_player=True,title=True,native_movement=native_movement,native_p2=native_p2);rom=root/'title.rom'
     with rom.open('xb') as f:f.write(image)
     scenarios={
       'neutral':([],7000000),
@@ -165,16 +165,17 @@ def test(exe,root,native_movement=None):
     summary={'status':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
              'rom_used_through':0x104+size,'cases':cases,'in_motion_displayed_x':displayed,
              'mouse_keyboard_handoff_replay':handoff,
+             'native_p2':native_p2,
              'native_component_sha256':sha(native_movement) if native_movement is not None else None,
              'native_component_end':0xe000+len(native_movement) if native_movement is not None else None}
     (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(summary,indent=2))
 
 def main():
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--boothush',required=True,type=Path);p.add_argument('--keep',type=Path);p.add_argument('--native-component',type=Path);a=p.parse_args()
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--boothush',required=True,type=Path);p.add_argument('--keep',type=Path);p.add_argument('--native-component',type=Path);p.add_argument('--native-p2',action='store_true');a=p.parse_args()
     component=a.native_component.read_bytes() if a.native_component else None
-    if a.keep:a.keep.mkdir(parents=True,exist_ok=False);test(a.boothush,a.keep,component)
+    if a.keep:a.keep.mkdir(parents=True,exist_ok=False);test(a.boothush,a.keep,component,a.native_p2)
     else:
-        with tempfile.TemporaryDirectory(prefix='nstb-title-') as d:test(a.boothush,Path(d),component)
+        with tempfile.TemporaryDirectory(prefix='nstb-title-') as d:test(a.boothush,Path(d),component,a.native_p2)
 
 if __name__=='__main__':main()

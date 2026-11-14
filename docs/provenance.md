@@ -94,3 +94,8 @@ constants and attribution. Its two-direction test harness, arithmetic and
 caller interface are local port work. It remains game-informed material and
 is not eligible as a ClasSICK implementation input merely because BootHush
 can execute it.
+
+The later optional two-player C title reuses that same attributed movement
+component for player two. Its per-player state, input bridge, attack lock and
+tests are local adaptations. See [native-C evidence](windows-native-c-evidence.md)
+for the exact build and distinctions; this remains game-informed port work.
