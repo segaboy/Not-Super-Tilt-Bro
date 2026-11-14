@@ -155,3 +155,12 @@ the 256-cycle case ended at X=247. The test stopped on the regression; its
 per-scenario captures and commands remain in ignored
 `out/title-poll-fast-20261114-a`. The attempted change was removed. These
 timing-dependent model observations do not establish a physical speed limit.
+
+The follow-up `out/title-actions-20261114-a` reran the same ROM and BootHush
+executable with 22 title/handoff scenarios. In addition to both players'
+movement, separate post-Start scheduled keyboard cases now verify one P1 jump,
+one P2 jump, one P1 attack and one P2 attack using the guest's event counters
+and full-frame check. Mouse Start precedes each action; keyboard witnesses
+show no rejected, pending or dropped events. This is modeled input to the
+existing game-logic slice, not proof of a complete match, physical key layout,
+rollover or playable original hardware.

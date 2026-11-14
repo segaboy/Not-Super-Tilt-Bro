@@ -39,7 +39,8 @@ def run(exe,rom,root,name,events,stop=7000000):
     else:raise AssertionError((name,'unexpected title state',state))
     (root/(name+'.json')).write_text(json.dumps({'command':cmd,'result':data,'frame_sha256':sha(image)},indent=2)+'\n',encoding='utf-8')
     return {'x':x,'y':y,'state':state,'game_x':int.from_bytes(b[16:18],'big'),
-            'p2x':int.from_bytes(b[38:40],'big'),'frame_sha256':sha(image)}
+            'p2x':int.from_bytes(b[38:40],'big'),'p1_jumps':b[31],'p1_attacks':b[36],
+            'p2_jumps':b[57],'p2_attacks':b[47],'frame_sha256':sha(image)}
 
 def animation(exe,rom,root):
     frames=root/'in_motion.pbmseq'
@@ -94,6 +95,10 @@ def test(exe,root):
       'title_keys_discarded':([('key','1000000:0:1'),('key','1300000:0:0'),('mouse-button','2000000:1'),('mouse-button','2400000:0')],7000000),
       'play_keys':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:0:1'),('key','4500000:0:0')],7000000),
       'p2_play_keys':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:5:1'),('key','4500000:5:0')],7000000),
+      'p1_jump':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:2:1'),('key','4500000:2:0')],7000000),
+      'p2_jump':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:7:1'),('key','4500000:7:0')],7000000),
+      'p1_attack':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:3:1'),('key','4500000:3:0')],7000000),
+      'p2_attack':([('mouse-button','2000000:1'),('mouse-button','2400000:0'),('key','3500000:6:1'),('key','4500000:6:0')],7000000),
       'motion_2048':([('mouse-edge-cycles','2048'),('mouse-motion','1000000:32:0')],4000000),
       'motion_1024':([('mouse-edge-cycles','1024'),('mouse-motion','1000000:32:0')],4000000),
       'motion_256':([('mouse-edge-cycles','256'),('mouse-motion','1000000:32:0')],4000000),
@@ -113,6 +118,9 @@ def test(exe,root):
     assert cases['start']['state']==2 and cases['title_keys_discarded']['game_x']==0x8000
     assert cases['play_keys']['game_x']>0x8000
     assert cases['p2_play_keys']['p2x']<0xa800
+    for name,field in (('p1_jump','p1_jumps'),('p2_jump','p2_jumps'),
+                       ('p1_attack','p1_attacks'),('p2_attack','p2_attacks')):
+        assert cases[name]['state']==2 and cases[name][field]==1,(name,cases[name])
     assert cases['motion_2048']['x']==288
     assert cases['motion_1024']['x']==288
     # motion_256 is a characterization, not an assertion that loss must persist.
