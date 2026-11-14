@@ -21,7 +21,7 @@ def decode(sample):
     return {'held':b[8], 'reply':b[9], 'entries':int.from_bytes(b[10:12],'big'),
             'ticks':int.from_bytes(b[12:14],'big'), 'velocity':signed(int.from_bytes(b[14:16],'big')),
             'position':int.from_bytes(b[16:18],'big'), 'vbls':int.from_bytes(b[18:20],'big'), 'phase':b[20],
-            'timeouts':int.from_bytes(b[22:24],'big')}
+            'held_mask':b[21], 'timeouts':int.from_bytes(b[22:24],'big')}
 
 def check_pixels(frame, state):
     assert frame.startswith(HEADER) and len(frame)==len(HEADER)+21888
@@ -97,6 +97,10 @@ def test(exe,root):
       'right_repeat':([(600000,0,1),(2600000,0,0)],points,4300000),
       'left':([(600000,1,1),(2600000,1,0)],points,4300000),
       'reverse':([(600000,0,1),(1600000,1,1),(2600000,1,0)],points,4300000),
+      'overlap_restore':([(600000,0,1),(1600000,1,1),(2600000,1,0),(3600000,0,0)],points+[32,34,36,38,41],5600000),
+      'overlap_inactive_release':([(600000,0,1),(1600000,1,1),(2600000,0,0),(3600000,1,0)],points+[32,34,36,38,41],5600000),
+      'overlap_restore_left':([(600000,1,1),(1600000,0,1),(2600000,0,0),(3600000,1,0)],points+[32,34,36,38,41],5600000),
+      'overlap_inactive_left':([(600000,1,1),(1600000,0,1),(2600000,1,0),(3600000,0,0)],points+[32,34,36,38,41],5600000),
       'right_bound':([(600000,0,1)], [100,140,180],24000000),
       'left_bound':([(600000,1,1)], [100,140,180],24000000),
       'stall_recovery':([(600000,0,1),(2600000,0,0)],points,4300000,'20:1:1:0'),
@@ -110,13 +114,27 @@ def test(exe,root):
     assert any(s['velocity']==0x200 for s in right) and any(s['velocity']==-0x200 for s in left)
     assert right[-1]['held']==left[-1]['held']==0 and right[-1]['velocity']==left[-1]['velocity']==0
     assert any(s['held']==2 and s['velocity']<0 for s in rev)
+    restored=cases['overlap_restore'][1]
+    assert any(s['held']==2 and s['held_mask']==3 for s in restored)
+    assert any(s['held']==1 and s['held_mask']==1 and s['entries']==3 for s in restored)
+    assert restored[-1]['held']==restored[-1]['held_mask']==0 and restored[-1]['velocity']==0
+    inactive=cases['overlap_inactive_release'][1]
+    assert any(s['held']==2 and s['held_mask']==2 and s['entries']==2 for s in inactive)
+    assert inactive[-1]['held']==inactive[-1]['held_mask']==0 and inactive[-1]['velocity']==0
+    restored_left=cases['overlap_restore_left'][1]
+    assert any(s['held']==1 and s['held_mask']==3 for s in restored_left)
+    assert any(s['held']==2 and s['held_mask']==2 and s['entries']==3 for s in restored_left)
+    assert restored_left[-1]['held']==restored_left[-1]['held_mask']==0 and restored_left[-1]['velocity']==0
+    inactive_left=cases['overlap_inactive_left'][1]
+    assert any(s['held']==1 and s['held_mask']==1 and s['entries']==2 for s in inactive_left)
+    assert inactive_left[-1]['held']==inactive_left[-1]['held_mask']==0 and inactive_left[-1]['velocity']==0
     assert cases['right_bound'][1][-1]['position']==0xe000
     assert cases['left_bound'][1][-1]['position']==0x1000
     for name in ('stall_recovery','reply_recovery'):
         result,states,_,deliveries,_=cases[name]
         assert result['keyboard_fault']['triggered'] and states[-1]['timeouts']>=1,(name,result,states[-1])
         assert states[-1]['ticks']>5 and states[-1]['position']>0x8000 and len(deliveries)==2,(name,states[-1])
-    assert all(s['timeouts']==0 for n in ('neutral','right','left','reverse') for s in cases[n][1])
+    assert all(s['timeouts']==0 for n in ('neutral','right','left','reverse','overlap_restore','overlap_inactive_release','overlap_restore_left','overlap_inactive_left') for s in cases[n][1])
     assert all(cases[n][4]>=20 for n in ('neutral','right','left','reverse'))
     summary={'result':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
              'rom_bytes':len(image),'rom_used_through':0x104+size,'cases':{}}

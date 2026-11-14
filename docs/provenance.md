@@ -39,3 +39,8 @@ frame pacing and bounds are original to this project. See
 [movement evidence](movement-evidence.md) for the source hashes, limitations,
 and distinction between emulator and hardware observations. Its startup still
 uses the separately attributed GPL-3.0-or-later ClasSICK reset sequence.
+
+The subsequent two-key bitmap and last-pressed direction policy are original to
+this port and are not attributed to the source game or to historical Mac
+keyboard behavior. They operate within the already attributed source-derived
+movement experiment; see [overlap evidence](overlapping-direction-evidence.md).

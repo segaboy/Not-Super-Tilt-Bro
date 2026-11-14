@@ -16,6 +16,7 @@ from build_mac_run_transition import Emitter, FIGURE
 
 IFR = 0xeffbfe
 HELD, REPLY, ENTRY_COUNT, TICKS, VEL, POS, VBLS, PHASE, TIMEOUTS = [DIAG+x for x in (8,9,10,12,14,16,18,20,22)]
+HELD_MASK = DIAG + 21  # original experiment's right/left modeled-key bitmap
 
 class Asm(Emitter):
     def cond(self, inverse, target):
@@ -88,7 +89,11 @@ def build():
     for label,direction,velocity in (('right',1,0x0100),('left',2,0xff00)):
         e.label(label)
         e.put(bytes.fromhex('13c0')+be32(REPLY))
-        e.if_byte(HELD,direction,'pace')
+        # Ignore a duplicate make for a key already down. The most recently
+        # pressed distinct direction wins until that key is released.
+        for state in ((1,3) if direction == 1 else (2,3)):
+            e.if_byte(HELD_MASK,state,'pace')
+        e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(HELD_MASK)) # BSET
         e.put(move_byte(direction,HELD))
         e.setword(velocity,VEL)
         e.word('5279',ENTRY_COUNT)
@@ -96,12 +101,20 @@ def build():
     for label,direction in (('right_up',1),('left_up',2)):
         e.label(label)
         e.put(bytes.fromhex('13c0')+be32(REPLY))
-        # A release only stops the matching direction; simultaneous held keys
-        # are not a complete source input-table or rollover implementation.
-        e.if_byte(HELD,direction,label+'_clear')
+        e.put(bytes.fromhex('08b9')+be16(direction-1)+be32(HELD_MASK)) # BCLR
+        e.if_byte(HELD,direction,label+'_active')
         e.jump('pace')
-        e.label(label+'_clear')
+        e.label(label+'_active')
+        # If the other key remains down, re-enter its run. This is this
+        # experiment's input policy, not a claim about source-game ordering.
+        other = 2 if direction == 1 else 1
+        e.if_byte(HELD_MASK,other,label+'_restore')
         e.put(move_byte(0,HELD))
+        e.jump('pace')
+        e.label(label+'_restore')
+        e.put(move_byte(other,HELD))
+        e.setword(0xff00 if other == 2 else 0x0100,VEL)
+        e.word('5279',ENTRY_COUNT)
         e.jump('pace')
     e.label('pace')
     e.put(bytes.fromhex('5239')+be32(PHASE))
