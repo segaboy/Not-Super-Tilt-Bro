@@ -73,3 +73,11 @@ design choices. The second jump reuses the same source-informed constants and
 local integration as the first. Its geometric figure is original to this port;
 no upstream art is included. [Evidence](two-character-evidence.md). These
 game-informed materials are not automatically eligible for ClasSICK.
+
+The experimental mouse title's phase mapping and direction convention are
+informed by the GPL-3.0-or-later ClasSICK 0.97 polled-phase research and the
+hardware-alias hypothesis identified in [the title receipt](mouse-title-evidence.md).
+The original title lettering, button, pointer, polling glue and handoff are
+port-specific. They are not validated physical hardware behavior and should not
+be transferred back to ClasSICK without its source-eligibility and independent
+implementation process.

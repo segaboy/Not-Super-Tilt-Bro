@@ -53,7 +53,7 @@ def sprite_address(e, addr, jumping=False, height_addr=JHEIGHT):
         e.word('3039',height_addr)   # unsigned 8.8 height above floor
         e.put(bytes.fromhex('e048 ed48 90c0')) # >>8; <<6; SUBA.W D0,A0
 
-def wait_shift(e, name):
+def wait_shift(e, name, timeout_target='wait_vbl'):
     # Bounded polling prevents a missing modeled keyboard reply from hanging
     # the game forever. The threshold is a prototype, not physical timing.
     e.put(bytes.fromhex('323c1000'))  # MOVE.W #4096,D1
@@ -65,20 +65,28 @@ def wait_shift(e, name):
     e.put(bytes.fromhex('51c9')+struct.pack('>h',offset))
     e.word('5279',TIMEOUTS)
     e.put(move_byte(0,0xeff7fe))      # reset shift mode before a fresh command
-    e.jump('wait_vbl')
+    e.jump(timeout_target)
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False):
+def build(jumping=False,combat=False,two_player=False,title=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
         raise ValueError('two-player experiment requires combat')
+    if title and not two_player:
+        raise ValueError('title experiment requires two-player')
     e=Asm()
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
     e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
           +bytes.fromhex('4218 51c8fffc'))
+    if title:
+        from build_mac_title import emit_title
+        emit_title(e,wait_shift)
+        # Remove the title before drawing the separate gameplay scene.
+        e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
+              +bytes.fromhex('4218 51c8fffc'))
     # Stage is original geometric art. All moving art occupies rows 228..251.
     for y in range(252,260):
         for x in range(16,48):
@@ -609,6 +617,7 @@ def build(jumping=False,combat=False,two_player=False):
                 for row in range(6):
                     for byte,value in parts:
                         e.put(bytes.fromhex('0029')+be16(value)+be16(row*64+byte))
+        if title:e.put(move_byte(2,DIAG+73)) # first complete arena frame is ready
         e.jump('wait_vbl')
     e.label('fault')
     e.put(bytes.fromhex('60fe'))
