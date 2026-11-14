@@ -114,6 +114,13 @@ fingerprints, ROMs, per-case results, comparison samples and mutant are in
 `C:/Repos/.task-temp/nstb-native-c-title-20261114-c/report.json`; the default
 control is `C:/Repos/.task-temp/nstb-title-legacy-control-20261114-a`.
 The independent BootHush title integration tests passed for this ROM as well.
+They and both standalone C fixture checks were rerun successfully with the
+later BootHush input-accounting executable SHA-256
+`62daf36a8d1e034667fbd73dd09a2a6134a6a0144ea56010d327b41fd110d9da`.
+The four-test output and the partial rebuild's object identities are linked
+from `C:/Repos/boothush/docs/pc286-input-accounting-20261114.md`. This checks
+that the 286 reporting change did not regress these selected Mac fixtures;
+it is not new hardware evidence.
 Reproduce with:
 
 ```powershell
