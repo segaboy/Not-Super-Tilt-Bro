@@ -164,3 +164,23 @@ and full-frame check. Mouse Start precedes each action; keyboard witnesses
 show no rejected, pending or dropped events. This is modeled input to the
 existing game-logic slice, not proof of a complete match, physical key layout,
 rollover or playable original hardware.
+
+### Visible control hints
+
+The current title ROM now draws original geometric `MOUSE START` and
+`KEYBOARD PLAY` hints below the Start button. This follows the owner's chosen
+mouse-title/keyboard-play flow; it does not claim a verified physical key
+layout. The image was inspected from a guest-only BootHush PBM converted
+losslessly to `out/title-controls-labels-20261114-a/neutral.png` (SHA-256
+`aabf25b889449d55e98e98a9ec965479c114c95255a9c08bff57116cb5f5589a`).
+No Apple or upstream game artwork was used.
+
+The current 65,536-byte ROM SHA-256 is
+`1a367b8eceb9f032e20b679e9224cedf44cde1fc4615720e25710d23f0bd839e`,
+used through offset 36,854. The previous `d84d...` ROM remains historical.
+All 22 title, mouse, action and replay scenarios pass using BootHush executable
+`5d4f610e98cbb8b03476f28929d6e5c0f64b941aafac3c7d5b6ef12c76c7eeb3`;
+the exact commands, images, reports and trace are in
+`out/title-controls-labels-20261114-a`. BootHush's optional title integration
+was updated to accept and independently test both pinned ROM identities.
+These are injected emulator tests, not a completed game or physical result.
