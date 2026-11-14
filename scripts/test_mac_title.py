@@ -72,6 +72,41 @@ def animation(exe,rom,root):
         'trace_sha256':sha(trace.read_bytes()),'frames_sha256':sha(replay_frames.read_bytes())},indent=2)+'\n',encoding='utf-8')
     return displayed
 
+
+def handoff_replay(exe,rom,root):
+    """Replay mouse title input alongside the same scheduled gameplay key."""
+    trace=root/'handoff.bhmouse'
+    captures=[1200000,2200000,3000000,4000000,6000000]
+    common=['--machine','mac128k','--rom',str(rom),'--cycles','7000000','--timeout-ms','20000',
+            '--capture-memory','0xb00:86']
+    records=[]
+    for name,mouse in (
+        ('handoff_record',['--mouse-dcd-invert','3','--mouse-motion','1000000:16:0',
+                           '--mouse-button','2000000:1','--mouse-button','2400000:0',
+                           '--mouse-record',str(trace)]),
+        ('handoff_replay',['--mouse-replay',str(trace)])):
+        frames=root/(name+'.pbmseq');witness=root/(name+'.keyboard')
+        cmd=[str(exe),*common,*mouse,'--key','3500000:0:1','--key','4500000:0:0',
+             '--capture-series',str(frames),'--keyboard-witness',str(witness)]
+        for cycle in captures:cmd+=['--capture-cycle',str(cycle)]
+        result=subprocess.run(cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        if result.returncode:raise RuntimeError(name+': '+result.stdout+result.stderr)
+        data=json.loads(result.stdout);series=data['frame_series']
+        assert data['status']=='cycle_limit' and data['mouse']['pending']==0
+        assert (series['requested'],series['processed'],series['pending'],series['dropped'])==(5,5,0,0)
+        assert data['keyboard_witness']['rejected']==data['keyboard_witness']['pending']==data['keyboard_witness']['dropped']==0
+        snapshots=[(s['cycle'],s['memory']) for s in series['samples']]
+        (root/(name+'.json')).write_text(json.dumps({'command':cmd,'result':data,
+            'frames_sha256':sha(frames.read_bytes())},indent=2)+'\n',encoding='utf-8')
+        records.append((data,snapshots,frames.read_bytes()))
+    first,second=records
+    assert first[0]['cycles']==second[0]['cycles'] and first[0]['mouse']==second[0]['mouse']
+    assert first[1:]==second[1:]
+    final=bytes.fromhex(first[1][-1][1]['bytes'])
+    assert final[73]==2 and int.from_bytes(final[16:18],'big')>0x8000
+    return {'trace_sha256':sha(trace.read_bytes()),'frames_sha256':sha(first[2]),
+            'final_game_x':int.from_bytes(final[16:18],'big')}
+
 def test(exe,root):
     image,size=build(jumping=True,combat=True,two_player=True,title=True);rom=root/'title.rom'
     with rom.open('xb') as f:f.write(image)
@@ -126,8 +161,10 @@ def test(exe,root):
     # motion_256 is a characterization, not an assertion that loss must persist.
     assert cases['flush_timeout']['state']==3 and cases['flush_retry']['state']==2
     displayed=animation(exe,rom,root)
+    handoff=handoff_replay(exe,rom,root)
     summary={'status':'pass','rom_sha256':sha(image),'boothush_sha256':sha(exe.read_bytes()),
-             'rom_used_through':0x104+size,'cases':cases,'in_motion_displayed_x':displayed}
+             'rom_used_through':0x104+size,'cases':cases,'in_motion_displayed_x':displayed,
+             'mouse_keyboard_handoff_replay':handoff}
     (root/'summary.json').write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
     print(json.dumps(summary,indent=2))
 

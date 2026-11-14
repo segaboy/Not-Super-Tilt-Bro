@@ -184,3 +184,22 @@ the exact commands, images, reports and trace are in
 `out/title-controls-labels-20261114-a`. BootHush's optional title integration
 was updated to accept and independently test both pinned ROM identities.
 These are injected emulator tests, not a completed game or physical result.
+
+### Recorded mouse-to-keyboard handoff
+
+With the same `1a367b8e...` ROM and BootHush executable `5d4f610e...`,
+`scripts/test_mac_title.py` now records mouse movement and a Start click,
+then replays those mouse inputs with the same scheduled keyboard press and
+release. All 22 existing scenarios pass, and five cycle-indexed frames and
+86-byte guest-state snapshots match between the recording and replay. The
+guest enters gameplay and the modeled P1 position advances to 37,088. The
+trace SHA-256 is
+`7ecce07edd6b715d66ab2ba4c79d6addee16d97cde8c57b9c29c4359a2ca3aa4`;
+the frame-series SHA-256 is
+`2ef5eb0505d16dfbbfcce45be50bc2873a2112ea5cfc48a12fc5a6445e0d707c`.
+Exact commands, input traces, keyboard witnesses, frames, ROM and results are
+in `C:/Repos/.task-temp/nstb-handoff-replay-20261114-b`. An earlier attempt
+in the sibling `-a` directory failed because scheduled inputs were listed out
+of order; it is preserved. This demonstrates injected emulator behavior,
+not physical input or a completed playable game. BootHush's independently
+maintained optional integration test also covers this handoff.
