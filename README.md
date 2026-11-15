@@ -9,9 +9,10 @@ also runs in an opt-in title ROM: mouse Start leads to keyboard-driven
 movement through that component for both players. The rest of the prototype
 still uses the emitter; neither build is a complete game.
 
-A separate [source-derived PAL jab-chain slice](docs/jab-chain-evidence.md)
-now runs as native 68000 C in a bounded BootHush diagnostic. It is not yet
-connected to the title/game ROM and does not establish a playable match.
+A [source-derived PAL jab-chain slice](docs/jab-chain-evidence.md) now also
+runs as native 68000 C in an opt-in mouse-title, keyboard-play ROM for both
+players. Its local collision and graphics remain placeholders, and it does
+not establish a playable match.
 
 ## Approach
 

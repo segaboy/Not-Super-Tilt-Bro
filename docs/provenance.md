@@ -100,7 +100,10 @@ component for player two. Its per-player state, input bridge, attack lock and
 tests are local adaptations. See [native-C evidence](windows-native-c-evidence.md)
 for the exact build and distinctions; this remains game-informed port work.
 
-The isolated PAL jab-chain C slice adapts state and changed-input behavior
+The PAL jab-chain C slice adapts state and changed-input behavior
 from the same upstream revision; its exact source files, hashes, attribution,
 test and scope are recorded in [jab-chain evidence](jab-chain-evidence.md).
 The source-derived component is not a ClasSICK implementation input.
+The later optional title integration uses a local keyboard-to-button adapter,
+placeholder graphics and collision logic; these do not reproduce the upstream
+game's complete input combinations, animation or hitboxes.

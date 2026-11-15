@@ -23,6 +23,7 @@ P2POS, P2HELD, P2MASK, P2FACING, P2CHANGES = [DIAG+x for x in (38,40,41,42,43)]
 P2ACLOCK, P2ABUTTON, P1DAMAGE, P2ATTACKS, P2HITS = [DIAG+x for x in (44,45,46,47,48)]
 P2JSTATE, P2JCLOCK, P2JVEL, P2HEIGHT, P2JBUTTON, P2JCOUNT = [DIAG+x for x in (50,51,52,54,56,57)]
 P2VEL = DIAG + 88  # experimental C movement velocity; separate from title scratch
+P1JAB, P2JAB, P1JAB_NEW, P2JAB_NEW, JAB_PREVIOUS = [DIAG+x for x in (90,94,98,99,100)]
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
@@ -70,7 +71,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -83,7 +84,36 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         raise ValueError('native movement must be nonempty bytes fitting the experimental ROM slot')
     if native_p2 and (native_movement is None or not two_player):
         raise ValueError('native player two requires a native component and two-player profile')
+    if native_jab is not None:
+        if not (title and native_p2 and isinstance(native_jab,tuple) and len(native_jab)==3):
+            raise ValueError('native jab requires the dual-C title profile and component tuple')
+        jab_code,jab_begin,jab_tick=native_jab
+        if (not isinstance(jab_code,bytes) or not jab_code or len(jab_code)>0x1e00 or
+            len(native_movement)>0x200 or any(not isinstance(x,int) or x<0 or x>=len(jab_code) or x%2 for x in (jab_begin,jab_tick))):
+            raise ValueError('native jab component outside its ROM slot')
     e=Asm()
+    def jab_begin_call(address,new_flag):
+        e.put(bytes.fromhex('4879')+be32(address)+bytes.fromhex('4eb9')+be32(ROM_BASE+0xe200+jab_begin)
+              +bytes.fromhex('4fef0004')+move_byte(1,new_flag))
+    def jab_tick_call(prefix,address,new_flag,button,clock,attacks):
+        e.if_byte(address,0,prefix+'_done')
+        e.if_byte(new_flag,1,prefix+'_new')
+        e.put(bytes.fromhex('13f9')+be32(address)+be32(JAB_PREVIOUS))
+        e.put(bytes.fromhex('7000 1039')+be32(button)+bytes.fromhex('2f00 4879')+be32(address))
+        e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe200+jab_tick)+bytes.fromhex('4fef0008'))
+        e.put(bytes.fromhex('1039')+be32(JAB_PREVIOUS)+bytes.fromhex('b039')+be32(address))
+        e.cond(0x67,prefix+'_changed') # BNE: stage transitioned
+        e.jump(prefix+'_done')
+        e.label(prefix+'_changed')
+        e.if_byte(address,0,prefix+'_ended')
+        e.put(move_byte(1,clock)+bytes.fromhex('5239')+be32(attacks))
+        e.jump(prefix+'_done')
+        e.label(prefix+'_ended')
+        e.put(move_byte(0,clock))
+        e.jump(prefix+'_done')
+        e.label(prefix+'_new')
+        e.put(move_byte(0,new_flag))
+        e.label(prefix+'_done')
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
     e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
@@ -100,6 +130,8 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.put(move_byte(0xff,SCREEN+y*64+x))
     for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
+    if native_jab is not None:
+        for off in range(90,101):e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
@@ -180,6 +212,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.if_byte(ACLOCK,0,'attack_begin')
         e.jump('pace')
         e.label('attack_begin')
+        if native_jab is not None:jab_begin_call(P1JAB,P1JAB_NEW)
         e.put(move_byte(1,ACLOCK))
         e.setword(0,VEL)
         e.put(bytes.fromhex('5239')+be32(ATTACKS))
@@ -212,6 +245,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.if_byte(P2ACLOCK,0,'p2_attack_begin')
         e.jump('pace')
         e.label('p2_attack_begin')
+        if native_jab is not None:jab_begin_call(P2JAB,P2JAB_NEW)
         e.put(move_byte(1,P2ACLOCK))
         e.put(bytes.fromhex('5239')+be32(P2ATTACKS))
         e.jump('pace')
@@ -497,10 +531,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,JSTATE))
     e.label('draw')
     if combat:
+        if native_jab is not None:jab_tick_call('p1_jab_c',P1JAB,P1JAB_NEW,ABUTTON,ACLOCK,ATTACKS)
         e.if_byte(ACLOCK,0,'draw_body')
         e.put(bytes.fromhex('5239')+be32(ACLOCK))
         e.if_byte(ACLOCK,7,'attack_hit_check')
-        e.if_byte(ACLOCK,25,'attack_end')
+        if native_jab is None:e.if_byte(ACLOCK,25,'attack_end')
         e.jump('draw_body')
         e.label('attack_hit_check')
         if two_player:
@@ -536,10 +571,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,ACLOCK))
         e.label('draw_body')
         if two_player:
+            if native_jab is not None:jab_tick_call('p2_jab_c',P2JAB,P2JAB_NEW,P2ABUTTON,P2ACLOCK,P2ATTACKS)
             e.if_byte(P2ACLOCK,0,'p2_attack_done')
             e.put(bytes.fromhex('5239')+be32(P2ACLOCK))
             e.if_byte(P2ACLOCK,7,'p2_attack_check')
-            e.if_byte(P2ACLOCK,25,'p2_attack_end')
+            if native_jab is None:e.if_byte(P2ACLOCK,25,'p2_attack_end')
             e.jump('p2_attack_done')
             e.label('p2_attack_check')
             e.word('3039',JHEIGHT)
@@ -686,6 +722,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         rom[vector*4:vector*4+4]=be32(e.labels['fault'])
     rom[ENTRY:ENTRY+len(code)]=code
     if native_movement is not None:rom[0xe000:0xe000+len(native_movement)]=native_movement
+    if native_jab is not None:rom[0xe200:0xe200+len(jab_code)]=jab_code
     return bytes(rom),len(code)
 
 def main():

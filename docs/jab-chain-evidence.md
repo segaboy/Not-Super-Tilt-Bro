@@ -2,12 +2,12 @@
 <!-- Copyright (C) 2026 Dean Howell. -->
 # Source-derived Sinbad PAL jab-chain slice
 
-2026-11-15. The existing mouse-title prototype provides a single local jab;
-it does not implement the source game's jab chain. The new native 68000 C
-component is an isolated state/input slice toward that goal. It is not yet
-connected to the title/game ROM, renders no character, takes no physical or
-modeled keyboard events, and does not implement collisions, animation, sound,
-idle re-entry, or a playable match.
+2026-11-15. A native 68000 C state/input slice is now connected to an opt-in
+mouse-title and keyboard-play prototype for both players, as well as the
+original isolated diagnostic. It implements part of Sinbad's PAL jab chain,
+not a complete match. The displayed figures and collisions are local
+placeholders; source-matched animation, sound, idle re-entry and the complete
+input combinations remain open. No physical inputs were tested.
 
 ## Source and scope
 
@@ -63,4 +63,40 @@ $py = 'C:/Users/segab/.cache/codex-runtimes/codex-primary-runtime/dependencies/p
 $tools = 'C:/Repos/.task-temp/m68k-windows-native-20261114-a/x-tools-v3-win/m68k-unknown-elf/bin'
 $bh = 'C:/Repos/.task-temp/boothush-transient-active-twins-20261115-b/a/boothush-active.exe'
 & $py -B scripts/test_sinbad_jab_chain.py --tool-bin $tools --boothush $bh --output C:/Repos/.task-temp/NEW-JAB-CHAIN
+```
+
+## Mouse-title and keyboard-play integration
+
+The experiment links the same C component alongside the native movement
+component and enters play through a scheduled mouse click. The keyboard
+adapter maps each player's local attack button to the slice's normalized jab
+input; directional/button combinations and later idle processing are not
+fully reproduced. The native state controls the local attack clock and
+placeholder hit checks, not source-matched NES sprites or hitboxes. The
+default prototype remains byte-identical and retains its single local jab.
+
+ROM SHA-256 `27c1f330ff2eb428e06f5297a28fe46fa1b004cac2ed178777d7ddeec04ac561`
+ran on BootHush SHA-256
+`ef7b5d9cf89fd0cc0eb1a816b5e489ffc34931349370a178c0579267dcc2ff2a`.
+The linked jab component's twin builds matched, SHA-256
+`30e0e1a84928b05fcf387ce00a8dd10881ebc8c6692a104a925f4a1f68153d6a`.
+Five scheduled scenarios cover each player chaining through all three states,
+both players together, an early tap and a held key. All scheduled keyboard
+transitions were delivered; 160 captures were available and pixel-checked.
+The separate frame-to-frame calculation checked 140 unchanged-input
+intervals. It rejected a one-tick first-cut threshold mutation. This checks
+the integration under the BootHush model; the calculation was authored with
+the implementation and is not an independent external review.
+
+The native-C title and eight-case combat regressions also passed with the
+same BootHush executable and preserved ROM SHA-256
+`6b302b449e5eab230753cc6604f886628566683d454e5d1b50590f8c061b2db6`.
+Exact commands, input and tool hashes, delivery witnesses, frame data,
+component layout and limitations are in
+`C:/Repos/.task-temp/nstb-title-native-jab-20261115-b/report.json`;
+the regression reports are in `C:/Repos/.task-temp/nstb-title-regression-20261115-a`
+and `C:/Repos/.task-temp/nstb-dual-c-regression-20261115-a`.
+
+```powershell
+& $py -B scripts/test_native_jab_title.py --tool-bin $tools --boothush $bh --component C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/a/movement.bin --output C:/Repos/.task-temp/NEW-TITLE-JAB
 ```
