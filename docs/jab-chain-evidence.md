@@ -141,3 +141,11 @@ was rejected before that guest run because it requested more than BootHush's
 the title-jab command above with the newer BootHush executable and a fresh
 output path. These are software and model observations, not physical input or
 hardware validation.
+
+The title/jab suite also passed on BootHush executable SHA-256
+`3aec7ffc0062d950f8f62088baf5c17ed95c70a9f1737776157a5a38568aa7f8`,
+which adds a PC disk test facility used by ClasSICK. The port's Mac-profile
+commands and results are in
+`C:/Repos/.task-temp/nstb-ordinal-regression-20261115-a/report.json`; the
+facility and limits are documented in
+`C:/Repos/boothush/docs/pc286-hard-disk-fault-20261114.md`.
