@@ -268,7 +268,10 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.word('5279',TICKS)
     if combat:
         e.if_byte(ACLOCK,0,'attack_movement_clear')
-        e.jump('native_neutral' if native_movement is not None else 'friction')
+        # Direction events can set velocity while a jab is active. Keep the
+        # prototype's grounded attack stationary until its clock ends.
+        e.setword(0,VEL)
+        e.jump('integrate')
         e.label('attack_movement_clear')
     e.if_byte(HELD,1,'native_right' if native_movement is not None else 'speed_right')
     e.if_byte(HELD,2,'native_left' if native_movement is not None else 'speed_left')

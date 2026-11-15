@@ -251,6 +251,37 @@ These checks exercise the port's existing local prototype combat, not
 source-matched hitboxes, knockback, stocks, a complete game, physical input or
 hardware timing. Game-informed implementation remains within the port.
 
+### Player-one jab movement lock
+
+The previous player-one jab could move if a direction key arrived after the
+jab began: the event set horizontal velocity and the attack branch applied
+friction instead of enforcing the intended stationary attack. The new test
+reproduced this on the earlier dual-C ROM in
+`C:/Repos/.task-temp/nstb-p1-attack-lock-before-20261115-a`; it failed the
+player-one lock assertion. The local prototype now clears player-one velocity
+each active attack tick and resumes ordinary movement after the attack ends.
+This is a local design correction, not a claim about the original game's
+rules; direction events may still alter facing during an attack.
+
+The rebuilt dual-C title ROM SHA-256 is
+`8fae602e93fc184522cf8f5aae83b632134e1767be80a93c2bef72af830862f6`.
+After modeled mouse Start, seven combat cases passed, including a direction
+press during a jab and a held direction that resumed afterward. In the latter,
+X remained 32768 through VBL 56, when the attack ended, and reached 34112 at
+VBL 63. Removing only the new per-tick velocity reset caused the lock-control
+positions to change from 32768 to 37376 during the attack. The per-frame
+oracles checked 25-30 adjacent intervals and original-art pixels; scheduled
+keyboard events were accounted for. Exact commands, source and image hashes,
+witnesses, the mutant and observations are in
+`C:/Repos/.task-temp/nstb-p1-attack-lock-after-20261115-b/report.json`.
+The independent native-C title build and test passed in
+`C:/Repos/.task-temp/nstb-lock-native-title-20261115-a/report.json`;
+the older two-player and training-combat suites also passed in sibling
+`nstb-lock-two-player-regression-20261115-a` and
+`nstb-lock-combat-regression-20261115-a` directories. All used BootHush SHA-256
+`370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`.
+These are emulated software observations, not a physical or playable-game claim.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell
