@@ -7,13 +7,13 @@ import hashlib
 import json
 from pathlib import Path
 
-from build_mac_movement import build,DAMAGE,P1DAMAGE,ACLOCK,VEL
+from build_mac_movement import build,DAMAGE,P1DAMAGE,ACLOCK,VEL,P2ACLOCK,P2VEL
 from build_mac_probe import be32
 from test_mac_two_player import run
 
 ROOT=Path(__file__).resolve().parents[1]
 COMPONENT_SHA='a65c5fa382bee316b916cd6c6af52c4a2591496aa762c346e784e7a8bca7d25c'
-ROM_SHA='8fae602e93fc184522cf8f5aae83b632134e1767be80a93c2bef72af830862f6'
+ROM_SHA='6b302b449e5eab230753cc6604f886628566683d454e5d1b50590f8c061b2db6'
 
 
 def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -55,6 +55,8 @@ def main():
     if (last('both_attack')['damage'],last('both_attack')['p1damage'])!=(2,2):raise ValueError('two-player trade not observed')
     locked=[s['p2x'] for s in cases['p2_attack_lock']['observations'] if 3<=s['p2attack_clock']<=22]
     if len(locked)<10 or len(set(locked))!=1:raise ValueError('player-two attack lock not sustained')
+    velocities=[s['p2velocity'] for s in cases['p2_attack_lock']['observations'] if 3<=s['p2attack_clock']<=22]
+    if any(velocities):raise ValueError('player-two retained velocity during attack')
     locked=[s['x'] for s in cases['p1_attack_lock']['observations'] if 3<=s['attack_clock']<=22]
     if len(locked)<10 or len(set(locked))!=1:raise ValueError('player-one attack lock not sustained')
     held=[(3500000,3,1),(4000000,0,1),(4800000,3,0)]
@@ -63,6 +65,14 @@ def main():
     resumed=cases['p1_resume_held']['observations']
     if not any(s['attack_clock']==0 and s['x']>locked[0] for s in resumed):
         raise ValueError('held direction did not resume after player-one attack')
+    p2held=[(3500000,5,1),(4200000,6,1),(4600000,6,0)]
+    cases['p2_resume_held']=run(exe,rom,out,'p2_resume_held',p2held,list(range(35,67)),9000000,
+                                native_p2=True,title_start=True)
+    resumed=cases['p2_resume_held']['observations']
+    during=[s['p2x'] for s in resumed if 3<=s['p2attack_clock']<=22]
+    if len(during)<10 or len(set(during))!=1 or not any(
+            s['p2attack_clock']==0 and s['p2x']<during[0] for s in resumed):
+        raise ValueError('held direction did not resume after player-two attack')
     if any(cases[name]['oracle_intervals']<15 for name in cases):raise ValueError('insufficient state oracle coverage')
     # Remove only the per-tick velocity reset, leaving the initial attack reset
     # intact. The held-direction scenario must reveal movement during the jab.
@@ -77,6 +87,23 @@ def main():
                      native_p2=True,title_start=True)
     mutant_positions=[s['x'] for s in changed_lock['observations'] if 3<=s['attack_clock']<=22]
     if len(mutant_positions)<10 or len(set(mutant_positions))<2:raise ValueError('lock mutation escaped control')
+    marker=bytes.fromhex('0c390000')+be32(P2ACLOCK)+bytes.fromhex('66064ef9')
+    reset=bytes.fromhex('33fc0000')+be32(P2VEL)
+    matches=[i+len(marker)+4 for i in range(len(image)) if image.startswith(marker,i)
+             and image.startswith(reset,i+len(marker)+4)]
+    if len(matches)!=1:raise ValueError('player-two velocity mutation site changed')
+    mutated=bytearray(image);at=matches[0];mutated[at:at+len(reset)]=bytes.fromhex('4e71')*4
+    p2_velocity_mutant=out/'p2-velocity-mutant.rom';p2_velocity_mutant.write_bytes(mutated)
+    try:
+        run(exe,p2_velocity_mutant,out,'p2-velocity-mutant',scenarios['p2_attack_lock'],points,stop,
+            native_p2=True,title_start=True)
+    except AssertionError as exc:
+        detail=exc.args[0] if exc.args else None
+        if (not isinstance(detail,tuple) or len(detail)!=3 or detail[0]!='p2-velocity-mutant' or
+            detail[1]['p2attack_clock']==0 or detail[1]['phase']==5 or detail[2]['p2velocity']==0):
+            raise ValueError('player-two velocity mutant failed for an unrelated reason') from exc
+    else:
+        raise ValueError('player-two velocity mutation escaped state oracle')
     # Deliberately weaken each hit's damage increment to prove that both the
     # explicit outcome check and the separate P2 state oracle detect it.
     p1_needle=bytes.fromhex('5439')+be32(DAMAGE)
@@ -105,7 +132,8 @@ def main():
             'source_sha256':before,'rom_used_through':0x104+size,'cases':cases,
             'mutation_controls':{'p1_sha256':sha(p1_mutant),'p1_final_damage':1,
                                  'p2_sha256':sha(p2_mutant),'p2_oracle_rejected':True,
-                                 'p1_lock_sha256':sha(lock_mutant),'p1_lock_positions':mutant_positions},
+                                 'p1_lock_sha256':sha(lock_mutant),'p1_lock_positions':mutant_positions,
+                                 'p2_velocity_sha256':sha(p2_velocity_mutant),'p2_velocity_oracle_rejected':True},
             'limits':'Mouse and keyboard schedules in BootHush; local combat and placeholder art, not complete game or physical input.'}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
     print(json.dumps({'status':'pass','rom_sha256':ROM_SHA,'case_count':len(cases),'report':str(out/'report.json')}))

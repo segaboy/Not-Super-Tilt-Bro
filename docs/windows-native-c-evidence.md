@@ -282,6 +282,33 @@ the older two-player and training-combat suites also passed in sibling
 `370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`.
 These are emulated software observations, not a physical or playable-game claim.
 
+### Player-two jab velocity
+
+The preceding dual-C build held player two in place during an attack but kept
+its old horizontal velocity. A new mouse-started test reproduced the retained
+velocity in `C:/Repos/.task-temp/nstb-p2-jab-velocity-before-20261115-a`.
+The local prototype now clears player-two velocity on active attack ticks;
+when a direction remains held after the jab, normal acceleration resumes from
+rest. A direction event may temporarily set velocity between simulation ticks;
+position remains locked on active attack ticks. This is a local prototype
+rule, not a complete source-game physics or timing claim.
+
+The rebuilt dual-C title ROM SHA-256 is
+`6b302b449e5eab230753cc6604f886628566683d454e5d1b50590f8c061b2db6`.
+Eight modeled combat scenarios passed, including held-direction resumption for
+both players. In the player-two case, X stayed at 40832 and velocity at zero
+through attack completion at VBL 62; by VBL 66, X was 40192 and velocity
+was -256. Removing the new reset caused the independent player-two velocity
+oracle to reject the mutant. Commands, source and image hashes, input
+witnesses, per-frame state and pixel checks and the mutant are in
+`C:/Repos/.task-temp/nstb-p2-jab-velocity-after-20261115-b/report.json`.
+The independent native-C title build passed in
+`C:/Repos/.task-temp/nstb-p2-jab-native-title-20261115-a/report.json`;
+the non-native two-player suite passed with its prior ROM identity in
+`C:/Repos/.task-temp/nstb-p2-jab-legacy-two-player-20261115-a`. BootHush
+SHA-256 remained `370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`.
+This is model evidence and does not establish a complete match or hardware result.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell

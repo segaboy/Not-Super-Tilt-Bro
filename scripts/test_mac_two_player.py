@@ -97,6 +97,8 @@ def run(exe,rom,root,name,events,points,stop,native_p2=False,title_start=False):
             else:
                 if old['p2held']==1:x=min(x+0x100,0xe000)
                 if old['p2held']==2:x=max(x-0x100,0x1000)
+        elif old['phase']!=5 and native_p2:
+            velocity=0
         assert new['p2x']==x,(name,old,new)
         if native_p2:assert new['p2velocity']==velocity,(name,old,new)
         clock=old['p2attack_clock'];damage=old['p1damage'];hits=old['p2hits']

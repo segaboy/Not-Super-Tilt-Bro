@@ -366,6 +366,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.word('33c0',POS)
     if two_player:
         e.if_byte(P2ACLOCK,0,'p2_movement_clear')
+        if native_p2:e.setword(0,P2VEL)
         e.jump('p2_tick_done')
         e.label('p2_movement_clear')
         if native_p2:
