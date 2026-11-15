@@ -100,3 +100,12 @@ and `C:/Repos/.task-temp/nstb-dual-c-regression-20261115-a`.
 ```powershell
 & $py -B scripts/test_native_jab_title.py --tool-bin $tools --boothush $bh --component C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/a/movement.bin --output C:/Repos/.task-temp/NEW-TITLE-JAB
 ```
+
+The same five title/jab scenarios and threshold mutation also passed on the
+later BootHush executable SHA-256
+`e84e214750c69907f6c5052397243661392810d1f1b14e357d6387a29008885d`.
+Its Windows twin build and PC keyboard queue observation work are recorded in
+`C:/Repos/boothush/docs/pc286-input-accounting-20261114.md`; the port's exact
+commands and hashes are in
+`C:/Repos/.task-temp/nstb-jab-pc-queue-regression-20261115-a/report.json`.
+This is a Mac-profile regression of the emulator build, not a physical test.
