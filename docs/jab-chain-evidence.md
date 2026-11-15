@@ -109,3 +109,35 @@ Its Windows twin build and PC keyboard queue observation work are recorded in
 commands and hashes are in
 `C:/Repos/.task-temp/nstb-jab-pc-queue-regression-20261115-a/report.json`.
 This is a Mac-profile regression of the emulator build, not a physical test.
+
+## Stage-specific prototype damage
+
+The reviewed `sinbad.json` identified above specifies damage values 2, 1 and
+5 on the enabled direct-hit frames of jab animations one, two and three.
+The opt-in title ROM now uses those values when its existing local collision
+rule reports a hit in each corresponding jab state. The prototype still
+uses its own timing, reach, target geometry, visual pose and maximum damage
+of 254; this is not a source-matched implementation of those hitboxes,
+knockback, hitstun, animations or the complete game.
+
+Windows-built 68000 component twins and generated ROM SHA-256
+`d4ba1b15dad0aedef42f9435dcc517720455e0374b3531a6766bc60edc6ef87b`
+ran on BootHush SHA-256
+`e84e214750c69907f6c5052397243661392810d1f1b14e357d6387a29008885d`.
+For both players, a scheduled mouse Start and keyboard sequence produced
+three local hits with damage progression 2, 3, 8. Initial damage 250 and 254
+exercised the local saturation cap for both players. Four mutations changing
+the second- or third-stage amount produced the expected different totals.
+The original five chain, early-tap and held-key cases and the threshold
+mutation also passed, with full captured-frame checks. The prior single-jab
+ROM remained byte-identical and its eight-case combat regression passed.
+
+Input witnesses, frame captures, tool and source hashes, commands and test
+limits are in `C:/Repos/.task-temp/nstb-jab-stage-damage-20261115-d/report.json`;
+the legacy regression is `C:/Repos/.task-temp/nstb-legacy-damage-regression-20261115-a/report.json`.
+The earlier `-a` run completed its initial scenarios but the first hit case
+was rejected before that guest run because it requested more than BootHush's
+32 capture points; the output remains preserved. Reproduce using
+the title-jab command above with the newer BootHush executable and a fresh
+output path. These are software and model observations, not physical input or
+hardware validation.

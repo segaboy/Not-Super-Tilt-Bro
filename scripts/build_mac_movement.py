@@ -114,6 +114,20 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label(prefix+'_new')
         e.put(move_byte(0,new_flag))
         e.label(prefix+'_done')
+    def jab_damage(prefix,jab,damage):
+        # Source-derived PAL jab damage values, applied to this prototype's
+        # local collision rule. The 254 saturation is a local display policy.
+        for stage in (1,2,3):e.if_byte(jab,stage,prefix+'_stage'+str(stage))
+        e.jump(prefix+'_done')
+        for stage,amount in ((1,2),(2,1),(3,5)):
+            e.label(prefix+'_stage'+str(stage))
+            e.put(bytes.fromhex('0c39')+be16(254-amount)+be32(damage))
+            e.cond(0x65,prefix+'_cap') # unsigned >= threshold
+            e.put(bytes.fromhex('0639')+be16(amount)+be32(damage))
+            e.jump(prefix+'_done')
+        e.label(prefix+'_cap')
+        e.put(move_byte(254,damage))
+        e.label(prefix+'_done')
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
     e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
@@ -561,10 +575,12 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.cmpw(0x2000 if two_player else 0xc800)
         e.cond(0x63,'draw_body')
         e.label('attack_apply')
-        e.put(bytes.fromhex('0c3900fe')+be32(DAMAGE))
-        e.cond(0x66,'attack_damage_capped') # equal: retain the visible maximum
-        e.put(bytes.fromhex('5439')+be32(DAMAGE)) # diagnostic damage += 2
-        e.label('attack_damage_capped')
+        if native_jab is not None:jab_damage('p1_jab_damage',P1JAB,DAMAGE)
+        else:
+            e.put(bytes.fromhex('0c3900fe')+be32(DAMAGE))
+            e.cond(0x66,'attack_damage_capped') # equal: retain the visible maximum
+            e.put(bytes.fromhex('5439')+be32(DAMAGE)) # diagnostic damage += 2
+            e.label('attack_damage_capped')
         e.put(bytes.fromhex('5239')+be32(HITS))
         e.jump('draw_body')
         e.label('attack_end')
@@ -600,10 +616,12 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.cmpw(0x2000)
             e.cond(0x63,'p2_attack_done')
             e.label('p2_attack_apply')
-            e.put(bytes.fromhex('0c3900fe')+be32(P1DAMAGE))
-            e.cond(0x66,'p2_damage_capped')
-            e.put(bytes.fromhex('5439')+be32(P1DAMAGE))
-            e.label('p2_damage_capped')
+            if native_jab is not None:jab_damage('p2_jab_damage',P2JAB,P1DAMAGE)
+            else:
+                e.put(bytes.fromhex('0c3900fe')+be32(P1DAMAGE))
+                e.cond(0x66,'p2_damage_capped')
+                e.put(bytes.fromhex('5439')+be32(P1DAMAGE))
+                e.label('p2_damage_capped')
             e.put(bytes.fromhex('5239')+be32(P2HITS))
             e.jump('p2_attack_done')
             e.label('p2_attack_end')

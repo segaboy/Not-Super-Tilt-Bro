@@ -104,6 +104,9 @@ The PAL jab-chain C slice adapts state and changed-input behavior
 from the same upstream revision; its exact source files, hashes, attribution,
 test and scope are recorded in [jab-chain evidence](jab-chain-evidence.md).
 The source-derived component is not a ClasSICK implementation input.
+The prototype's three damage amounts derive from the attributed Sinbad
+animation metadata; its collision geometry, hit timing and saturation rule
+remain local choices. See [jab-chain evidence](jab-chain-evidence.md).
 The later optional title integration uses a local keyboard-to-button adapter,
 placeholder graphics and collision logic; these do not reproduce the upstream
 game's complete input combinations, animation or hitboxes.

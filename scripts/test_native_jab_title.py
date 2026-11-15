@@ -9,7 +9,8 @@ import os
 from pathlib import Path
 import subprocess
 
-from build_mac_movement import build
+from build_mac_movement import build,DAMAGE,P1DAMAGE
+from build_mac_probe import be32
 from test_mac_two_player import decode,pixels
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -76,17 +77,17 @@ def main():
         'early_tap':[(3500000,3,1),(3900000,3,0),(4100000,3,1),(4300000,3,0)],
         'held':[(3500000,3,1)],
     }
-    def run(name,events,selected_rom=rom):
+    def run(name,events,selected_rom=rom,points=range(32,64),stop=9200000):
         frames=out/(name+'.pbmseq');witness=out/(name+'.keyboard')
-        cmd=[exe,'--machine','mac128k','--rom',selected_rom,'--cycles','9200000','--timeout-ms','20000',
+        cmd=[exe,'--machine','mac128k','--rom',selected_rom,'--cycles',str(stop),'--timeout-ms','20000',
              '--mouse-button','2000000:1','--mouse-button','2400000:0','--capture-series',frames,
              '--capture-memory','0xb00:101','--keyboard-witness',witness]
-        for frame in range(32,64):cmd+=['--capture-vbl',str(frame)]
+        for frame in points:cmd+=['--capture-vbl',str(frame)]
         for cycle,key,down in events:cmd+=['--key',f'{cycle}:{key}:{down}']
         data=json.loads(invoke(cmd,out/(name+'.log')));series=data['frame_series']
         if (data['status']!='cycle_limit' or series['rom_sha256']!=sha(selected_rom) or
             series['executable_sha256']!=sha(exe) or
-            (series['requested'],series['processed'],series['pending'],series['missing_images'],series['dropped'])!=(32,32,0,0,0) or
+            (series['requested'],series['processed'],series['pending'],series['missing_images'],series['dropped'])!=(len(points),len(points),0,0,0) or
             any(data['keyboard_witness'][k] for k in ('dropped','rejected','pending'))):
             raise ValueError(name+': incomplete input or frames')
         rows=[x.split() for x in witness.read_text(encoding='ascii').splitlines()[2:]]
@@ -135,6 +136,46 @@ def main():
                 raise ValueError(name+': expected three jab stages')
     for name in ('early_tap','held'):
         if any(s['p1jab'][0] in (2,3) for s in cases[name]['observations']):raise ValueError(name+': unexpected chain')
+    attack_events={
+        'p1_chain_hits':[(3500000,5,1),(4200000,5,0),(4700000,3,1),(5100000,3,0),
+                         (5400000,3,1),(6900000,3,0),(7100000,3,1),(9500000,3,0)],
+        'p2_chain_hits':[(3500000,5,1),(4200000,5,0),(4700000,6,1),(5100000,6,0),
+                         (5400000,6,1),(6900000,6,0),(7100000,6,1),(9500000,6,0)],
+    }
+    for name,events in attack_events.items():
+        cases[name]=run(name,events,points=range(45,77),stop=12500000)
+        last=cases[name]['observations'][-1]
+        key=('damage','hits') if name.startswith('p1') else ('p1damage','p2hits')
+        if tuple(last[k] for k in key)!=(8,3):raise ValueError(name+': expected three hits and damage 2+1+5')
+        history=[(s[key[0]],s[key[1]]) for s in cases[name]['observations']]
+        if not all(v in history for v in ((2,1),(3,2),(8,3))):raise ValueError(name+': missing stage damage')
+    for initial in (250,254):
+        capped,_=build(jumping=True,combat=True,two_player=True,title=True,initial_damage=initial,
+                       native_movement=movement.read_bytes(),native_p2=True,
+                       native_jab=(code,symbols['nstb_jab_begin'],symbols['nstb_jab_tick']))
+        cap_rom=out/('initial-%d.rom'%initial);cap_rom.write_bytes(capped)
+        for name,events in attack_events.items():
+            label=name+'-initial-%d'%initial
+            cases[label]=run(label,events,cap_rom,range(45,77),12500000)
+            key=('damage','hits') if name.startswith('p1') else ('p1damage','p2hits')
+            history=[(s[key[0]],s[key[1]]) for s in cases[label]['observations']]
+            expected=((252,1),(253,2),(254,3)) if initial==250 else ((254,1),(254,2),(254,3))
+            if not all(v in history for v in expected):raise ValueError(label+': damage saturation mismatch')
+    # Alter stage-specific increments; the final damage must change for both
+    # players, proving the outcome check is sensitive to the values.
+    damage_controls={}
+    for name,address in (('p1_chain_hits',DAMAGE),('p2_chain_hits',P1DAMAGE)):
+        for stage,old_amount,new_amount,expected in ((2,1,2,9),(3,5,4,7)):
+            needle=bytes.fromhex('0639')+bytes((0,old_amount))+be32(address)
+            if image.count(needle)!=1:raise ValueError('damage mutation site changed')
+            altered=image.replace(needle,bytes.fromhex('0639')+bytes((0,new_amount))+be32(address),1)
+            label=name+'-stage%d-mutant'%stage
+            path=out/(label+'.rom');path.write_bytes(altered)
+            result=run(label,attack_events[name],path,range(45,77),12500000)
+            last=result['observations'][-1]
+            key=('damage','hits') if name.startswith('p1') else ('p1damage','p2hits')
+            if tuple(last[k] for k in key)!=(expected,3):raise ValueError(label+': damage mutant did not change outcome')
+            damage_controls[label]={'rom_sha256':sha(path),'final_damage':expected,'hits':3}
     mutant_code,mutant_symbols=component('mutant',True)
     mutated,_=build(jumping=True,combat=True,two_player=True,title=True,native_movement=movement.read_bytes(),
                     native_p2=True,native_jab=(mutant_code,mutant_symbols['nstb_jab_begin'],mutant_symbols['nstb_jab_tick']))
@@ -150,6 +191,7 @@ def main():
                           'jab_component_end':0xe200+len(code),'rom_size':len(image)},
             'jab_component_sha256':hashlib.sha256(code).hexdigest(),'jab_symbols':symbols,
             'input_sha256':before,'commands':commands,'cases':cases,
+            'stage_damage_mutations':damage_controls,
             'mutation':{'rom_sha256':sha(mutant_rom),'oracle_rejected':True},
             'limits':'Mouse/keyboard schedules and original placeholder pixels in BootHush; local collision/display adapter, not complete game, physical input or source-matched NES execution.'}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
