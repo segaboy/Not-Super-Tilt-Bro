@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import subprocess
 
-from build_mac_movement import build,DAMAGE,P1DAMAGE
+from build_mac_movement import build,DAMAGE,P1DAMAGE,HELD_MASK,P2MASK,JBUTTON,P2JBUTTON
 from build_mac_probe import be32
 from test_mac_two_player import decode,pixels
 
@@ -76,6 +76,16 @@ def main():
                       (6300000,3,1),(6500000,6,1),(8500000,3,0),(8700000,6,0)],
         'early_tap':[(3500000,3,1),(3900000,3,0),(4100000,3,1),(4300000,3,0)],
         'held':[(3500000,3,1)],
+        'p1_direction_combo':[(3500000,3,1),(3900000,3,0),(4050000,0,1),
+                              (4200000,3,1),(6200000,0,0),(7500000,3,0)],
+        'p2_direction_combo':[(3500000,6,1),(3900000,6,0),(4050000,4,1),
+                              (4200000,6,1),(6200000,4,0),(7500000,6,0)],
+        'p1_jump_combo':[(3500000,3,1),(3900000,3,0),(4050000,2,1),
+                         (4200000,3,1),(6200000,2,0),(7500000,3,0)],
+        'p2_jump_combo':[(3500000,6,1),(3900000,6,0),(4050000,7,1),
+                         (4200000,6,1),(6200000,7,0),(7500000,6,0)],
+        'p1_start_direction':[(3500000,0,1),(3900000,3,1),(5500000,3,0),(5900000,0,0)],
+        'p2_start_direction':[(3500000,4,1),(3900000,6,1),(5500000,6,0),(5900000,4,0)],
     }
     def run(name,events,selected_rom=rom,points=range(32,64),stop=9200000):
         frames=out/(name+'.pbmseq');witness=out/(name+'.keyboard')
@@ -99,7 +109,9 @@ def main():
             memory=bytes.fromhex(sample['memory']['bytes'])
             if len(memory)!=101 or not sample['processed'] or not sample['image_available']:raise ValueError('missing sample')
             state=decode({'memory':{'bytes':memory[:58].hex()}})
-            state.update({'p1button':memory[33],'p1jab':list(memory[90:93]),'p2jab':list(memory[94:97]),
+            state.update({'p1button':memory[33],'p1mask':memory[21],'p1jumpbutton':memory[30],
+                          'p2mask':memory[41],'p2jumpbutton':memory[56],
+                          'p1jab':list(memory[90:93]),'p2jab':list(memory[94:97]),
                           'p1new':memory[98],'p2new':memory[99]})
             pixels(raw[sample['offset']:sample['offset']+sample['length']],state)
             states.append(state)
@@ -114,13 +126,14 @@ def main():
                     else:
                         clock-=1
                         if clock==0:stage=0
-                        elif old[button]!=previous:
-                            current=old[button]
-                            if stage==3 or clock>(14 if stage==1 else 16):
-                                if current==0:previous=0
-                            else:
-                                if current==1:stage+=1;clock=26
-                                previous=current
+                        else:
+                            current=2 if old[prefix+'mask'] or old[prefix+'jumpbutton'] else old[button]
+                            if current!=previous:
+                                if stage==3 or clock>(14 if stage==1 else 16):
+                                    if current==0:previous=0
+                                else:
+                                    if current==1:stage+=1;clock=26
+                                    previous=current
                 if (new[prefix+'jab'],new[prefix+'new'])!=([stage,clock,previous],newflag):
                     raise ValueError(name+': jab state mismatch '+str((prefix,old,new)))
             checks+=1
@@ -136,6 +149,35 @@ def main():
                 raise ValueError(name+': expected three jab stages')
     for name in ('early_tap','held'):
         if any(s['p1jab'][0] in (2,3) for s in cases[name]['observations']):raise ValueError(name+': unexpected chain')
+    for name,prefix in (('p1_direction_combo','p1'),('p2_direction_combo','p2')):
+        states=cases[name]['observations']
+        if any(s[prefix+'jab'][0] in (2,3) for s in states if s[prefix+'mask']):
+            raise ValueError(name+': direction combination incorrectly chained')
+        if not any(s[prefix+'jab'][0]==2 and not s[prefix+'mask'] for s in states):
+            raise ValueError(name+': neutral held attack did not chain after release')
+    for name,prefix in (('p1_jump_combo','p1'),('p2_jump_combo','p2')):
+        states=cases[name]['observations']
+        if any(s[prefix+'jab'][0] in (2,3) for s in states if s[prefix+'jumpbutton']):
+            raise ValueError(name+': jump combination incorrectly chained')
+        if not any(s[prefix+'jab'][0]==2 and not s[prefix+'jumpbutton'] for s in states):
+            raise ValueError(name+': neutral held attack did not chain after release')
+    for name,prefix in (('p1_start_direction','p1'),('p2_start_direction','p2')):
+        if any(s[prefix+'jab'][0] for s in cases[name]['observations']):
+            raise ValueError(name+': directional attack started a neutral jab')
+    input_controls={}
+    for name,address in (('p1_direction_combo',HELD_MASK),('p2_direction_combo',P2MASK),
+                         ('p1_jump_combo',JBUTTON),('p2_jump_combo',P2JBUTTON)):
+        marker=bytes.fromhex('0c390000')+be32(address)+bytes.fromhex('66064ef9')
+        sites=[i+len(marker)+4 for i in range(len(image)) if image.startswith(marker,i)
+               and image[i+len(marker)+4:i+len(marker)+6]==bytes.fromhex('7002')]
+        if len(sites)!=1:raise ValueError(name+': normalization mutation site changed')
+        altered=bytearray(image);altered[sites[0]:sites[0]+2]=bytes.fromhex('4e71')
+        path=out/(name+'-mutant.rom');path.write_bytes(altered)
+        try:run(name+'-mutant',scenarios[name],path)
+        except ValueError as exc:
+            if 'jab state mismatch' not in str(exc):raise
+        else:raise ValueError(name+': normalization mutant escaped')
+        input_controls[name]={'rom_sha256':sha(path),'oracle_rejected':True}
     attack_events={
         'p1_chain_hits':[(3500000,5,1),(4200000,5,0),(4700000,3,1),(5100000,3,0),
                          (5400000,3,1),(6900000,3,0),(7100000,3,1),(9500000,3,0)],
@@ -192,6 +234,7 @@ def main():
             'jab_component_sha256':hashlib.sha256(code).hexdigest(),'jab_symbols':symbols,
             'input_sha256':before,'commands':commands,'cases':cases,
             'stage_damage_mutations':damage_controls,
+            'input_normalization_mutations':input_controls,
             'mutation':{'rom_sha256':sha(mutant_rom),'oracle_rejected':True},
             'limits':'Mouse/keyboard schedules and original placeholder pixels in BootHush; local collision/display adapter, not complete game, physical input or source-matched NES execution.'}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

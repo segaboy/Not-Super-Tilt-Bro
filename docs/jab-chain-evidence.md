@@ -149,3 +149,30 @@ commands and results are in
 `C:/Repos/.task-temp/nstb-ordinal-regression-20261115-a/report.json`; the
 facility and limits are documented in
 `C:/Repos/boothush/docs/pc286-hard-disk-fault-20261114.md`.
+
+## Direction and jump combinations
+
+The title/game adapter now maps a held direction or jump button to the jab
+slice's `OTHER` input, and starts a neutral jab only when neither is held.
+During an existing jab, releasing the other input while attack remains held
+can make the input neutral-jab again, subject to the source-derived cut
+window. This is a local normalization of the source's changed-input
+distinction. Side tilts and other attacks are not implemented: pressing
+attack with a direction held at the start does not yet produce a side tilt.
+Other button combinations and idle re-entry remain incomplete.
+
+Both players were tested for direction-plus-attack and jump-plus-attack
+through the mouse-started prototype, plus neutral-jab refusal when starting
+with a direction held. Four separate mutations removed the direction or jump
+normalization for one player; the frame-to-frame state calculation rejected
+each. The existing chained hits, damage saturation, threshold mutation and
+full-frame checks passed as well. The previous single-jab ROM remained
+byte-identical and passed its eight combat scenarios. ROM SHA-256 is
+`93e66fd77854844d450b835504fa1689ca55387b355e1ac3842dbf94092b14fe`;
+BootHush executable SHA-256 is
+`3aec7ffc0062d950f8f62088baf5c17ed95c70a9f1737776157a5a38568aa7f8`.
+Exact input schedules, source/tool hashes, commands, witnesses and limitations
+are in `C:/Repos/.task-temp/nstb-jab-direction-input-20261115-b/report.json`;
+the older ROM regression is in
+`C:/Repos/.task-temp/nstb-jab-direction-legacy-20261115-a/report.json`.
+These are modeled input tests, not physical key behavior or a playable match.

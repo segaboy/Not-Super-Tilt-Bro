@@ -95,11 +95,18 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     def jab_begin_call(address,new_flag):
         e.put(bytes.fromhex('4879')+be32(address)+bytes.fromhex('4eb9')+be32(ROM_BASE+0xe200+jab_begin)
               +bytes.fromhex('4fef0004')+move_byte(1,new_flag))
-    def jab_tick_call(prefix,address,new_flag,button,clock,attacks):
+    def jab_tick_call(prefix,address,new_flag,button,directions,jump_button,clock,attacks):
         e.if_byte(address,0,prefix+'_done')
         e.if_byte(new_flag,1,prefix+'_new')
         e.put(bytes.fromhex('13f9')+be32(address)+be32(JAB_PREVIOUS))
-        e.put(bytes.fromhex('7000 1039')+be32(button)+bytes.fromhex('2f00 4879')+be32(address))
+        e.put(bytes.fromhex('7000 1039')+be32(button))
+        e.if_byte(directions,0,prefix+'_direction_clear')
+        e.put(bytes.fromhex('7002')) # OTHER: at least one direction held
+        e.label(prefix+'_direction_clear')
+        e.if_byte(jump_button,0,prefix+'_input_ready')
+        e.put(bytes.fromhex('7002')) # OTHER: jump held
+        e.label(prefix+'_input_ready')
+        e.put(bytes.fromhex('2f00 4879')+be32(address))
         e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe200+jab_tick)+bytes.fromhex('4fef0008'))
         e.put(bytes.fromhex('1039')+be32(JAB_PREVIOUS)+bytes.fromhex('b039')+be32(address))
         e.cond(0x67,prefix+'_changed') # BNE: stage transitioned
@@ -226,7 +233,14 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.if_byte(ACLOCK,0,'attack_begin')
         e.jump('pace')
         e.label('attack_begin')
-        if native_jab is not None:jab_begin_call(P1JAB,P1JAB_NEW)
+        if native_jab is not None:
+            e.if_byte(HELD_MASK,0,'p1_jab_neutral_direction')
+            e.jump('pace')
+            e.label('p1_jab_neutral_direction')
+            e.if_byte(JBUTTON,0,'p1_jab_neutral_jump')
+            e.jump('pace')
+            e.label('p1_jab_neutral_jump')
+            jab_begin_call(P1JAB,P1JAB_NEW)
         e.put(move_byte(1,ACLOCK))
         e.setword(0,VEL)
         e.put(bytes.fromhex('5239')+be32(ATTACKS))
@@ -259,7 +273,14 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.if_byte(P2ACLOCK,0,'p2_attack_begin')
         e.jump('pace')
         e.label('p2_attack_begin')
-        if native_jab is not None:jab_begin_call(P2JAB,P2JAB_NEW)
+        if native_jab is not None:
+            e.if_byte(P2MASK,0,'p2_jab_neutral_direction')
+            e.jump('pace')
+            e.label('p2_jab_neutral_direction')
+            e.if_byte(P2JBUTTON,0,'p2_jab_neutral_jump')
+            e.jump('pace')
+            e.label('p2_jab_neutral_jump')
+            jab_begin_call(P2JAB,P2JAB_NEW)
         e.put(move_byte(1,P2ACLOCK))
         e.put(bytes.fromhex('5239')+be32(P2ATTACKS))
         e.jump('pace')
@@ -545,7 +566,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,JSTATE))
     e.label('draw')
     if combat:
-        if native_jab is not None:jab_tick_call('p1_jab_c',P1JAB,P1JAB_NEW,ABUTTON,ACLOCK,ATTACKS)
+        if native_jab is not None:jab_tick_call('p1_jab_c',P1JAB,P1JAB_NEW,ABUTTON,HELD_MASK,JBUTTON,ACLOCK,ATTACKS)
         e.if_byte(ACLOCK,0,'draw_body')
         e.put(bytes.fromhex('5239')+be32(ACLOCK))
         e.if_byte(ACLOCK,7,'attack_hit_check')
@@ -587,7 +608,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,ACLOCK))
         e.label('draw_body')
         if two_player:
-            if native_jab is not None:jab_tick_call('p2_jab_c',P2JAB,P2JAB_NEW,P2ABUTTON,P2ACLOCK,P2ATTACKS)
+            if native_jab is not None:jab_tick_call('p2_jab_c',P2JAB,P2JAB_NEW,P2ABUTTON,P2MASK,P2JBUTTON,P2ACLOCK,P2ATTACKS)
             e.if_byte(P2ACLOCK,0,'p2_attack_done')
             e.put(bytes.fromhex('5239')+be32(P2ACLOCK))
             e.if_byte(P2ACLOCK,7,'p2_attack_check')
