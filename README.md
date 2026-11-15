@@ -9,6 +9,10 @@ also runs in an opt-in title ROM: mouse Start leads to keyboard-driven
 movement through that component for both players. The rest of the prototype
 still uses the emitter; neither build is a complete game.
 
+A separate [source-derived PAL jab-chain slice](docs/jab-chain-evidence.md)
+now runs as native 68000 C in a bounded BootHush diagnostic. It is not yet
+connected to the title/game ROM and does not establish a playable match.
+
 ## Approach
 
 - Use [BootHush](https://github.com/segaboy/boothush) headlessly for source and target testing. Report missing capabilities instead of silently switching emulators. Emulator observations are not proof of physical hardware behavior.
