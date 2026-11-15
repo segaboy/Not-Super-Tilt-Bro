@@ -318,6 +318,13 @@ The executable's source-build scope and retained dependency are recorded in
 `C:/Repos/boothush/docs/active-profile-build-20261115.md`; this adds no
 physical-hardware or playable-game claim.
 
+After BootHush added one-shot PC disk faults, its newly rebuilt active-profile
+twin SHA-256 `ef7b5d9cf89fd0cc0eb1a816b5e489ffc34931349370a178c0579267dcc2ff2a`
+also passed the eight port combat scenarios and mutation controls in
+`C:/Repos/.task-temp/nstb-transient-twin-combat-20261115-a/report.json`.
+Its title integration passed separately. The PC fault feature is unrelated
+to the Mac game behavior; this is a cross-project emulator regression only.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell
