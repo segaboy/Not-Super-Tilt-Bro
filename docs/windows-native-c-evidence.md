@@ -214,6 +214,43 @@ comparison, audio, verified physical keyboard behavior and original-hardware
 testing. Game-informed code is not automatically a ClasSICK implementation
 input.
 
+### Combat after mouse Start
+
+On 2026-11-15, the same dual-C title ROM was exercised beyond movement.
+After modeled mouse Start, five keyboard-driven scenarios covered an
+out-of-range miss, a player-one hit, a player-two hit, an exchange in which
+both land a hit, and player-two movement lock during an attack. In the two-hit
+exchange each character's diagnostic damage increased by two. The independent
+frame and state oracle checked 25–29 adjacent serviced VBL intervals per
+scenario, including the new player-two velocity, the existing local hit
+rules and original-art pixels. Keyboard witnesses reported all scheduled
+events accepted with none pending, rejected or dropped. Deliberately changing
+player one's increment to one produced one point instead of two; the
+equivalent player-two mutation was rejected at the expected damage assertion.
+
+The ROM SHA-256 remained
+`b4d75d3839e36cdfb5233b521b0a3474256ebe932525f1aa36a16b418884b126`;
+BootHush SHA-256 was
+`370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`.
+Exact commands, input schedules, per-frame observations, source and component
+identities, images, witnesses and mutant identities are in
+`C:/Repos/.task-temp/nstb-dual-c-combat-20261115-b/report.json`. The legacy
+two-character test also passed after the shared oracle was extended, with ROM
+SHA-256 `79ec8cf01b4156c5a34ae83c7e3a308a327802f56b6f187bfc66ec0a85e1a1d2`
+and evidence in `C:/Repos/.task-temp/nstb-two-player-regression-20261115-a`.
+Reproduce with fresh output:
+
+```powershell
+$py = 'C:/Users/segab/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe'
+$bh = 'C:/Repos/.task-temp/boothush-pc-hard-fault-twins-20261114-c/a/boothush.exe'
+$component = 'C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/a/movement.bin'
+& $py -B scripts/test_dual_c_combat.py --boothush $bh --component $component --output C:/Repos/.task-temp/NEW-DUAL-C-COMBAT
+```
+
+These checks exercise the port's existing local prototype combat, not
+source-matched hitboxes, knockback, stocks, a complete game, physical input or
+hardware timing. Game-informed implementation remains within the port.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell

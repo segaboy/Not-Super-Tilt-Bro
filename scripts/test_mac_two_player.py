@@ -55,10 +55,11 @@ def pixels(frame,s):
         at=row*64+16+x//8;expected[at:at+3]=p1bar.to_bytes(3,'big')
     assert frame[len(HEADER):]==expected,('unexpected pixel or stale area',s)
 
-def run(exe,rom,root,name,events,points,stop):
+def run(exe,rom,root,name,events,points,stop,native_p2=False,title_start=False):
     frames=root/(name+'.pbmseq');witness=root/(name+'.keyboard')
     cmd=[str(exe),'--machine','mac128k','--rom',str(rom),'--cycles',str(stop),'--timeout-ms','20000',
-         '--capture-series',str(frames),'--capture-memory','0xb00:58','--keyboard-witness',str(witness)]
+         '--capture-series',str(frames),'--capture-memory','0xb00:90' if native_p2 else '0xb00:58','--keyboard-witness',str(witness)]
+    if title_start:cmd+=['--mouse-button','2000000:1','--mouse-button','2400000:0']
     for p in points:cmd+=['--capture-vbl',str(p)]
     for cycle,key,down in events:cmd+=['--key',f'{cycle}:{key}:{down}']
     result=subprocess.run(cmd,capture_output=True,text=True,timeout=25,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
@@ -74,16 +75,30 @@ def run(exe,rom,root,name,events,points,stop):
     raw=frames.read_bytes();states=[]
     for sample in series['samples']:
         assert sample['processed'] and sample['image_available']
-        s=decode(sample);states.append(s);pixels(raw[sample['offset']:sample['offset']+sample['length']],s)
+        memory=bytes.fromhex(sample['memory']['bytes'])
+        if native_p2:
+            assert len(memory)==90
+            s=decode({'memory':{'bytes':memory[:58].hex()}})
+            s['p2velocity']=int.from_bytes(memory[88:90],'big',signed=True)
+        else:s=decode(sample)
+        states.append(s);pixels(raw[sample['offset']:sample['offset']+sample['length']],s)
     checked=0;unserviced=0
     for a,b,old,new in zip(series['samples'],series['samples'][1:],states,states[1:]):
         if b['frame']!=a['frame']+1 or any(a['cycle']<=cycle<b['cycle'] for cycle,_ in delivered):continue
         if new['vbls']!=old['vbls']+1:unserviced+=1;continue
-        x=old['p2x']
+        x=old['p2x'];velocity=old.get('p2velocity',0)
         if old['phase']!=5 and old['p2attack_clock']==0:
-            if old['p2held']==1:x=min(x+0x100,0xe000)
-            if old['p2held']==2:x=max(x-0x100,0x1000)
+            if native_p2:
+                if old['p2held']==1 and velocity<0x200:velocity+=0x40
+                elif old['p2held']==2 and velocity>-0x200:velocity-=0x40
+                elif old['p2held']==0 and velocity>0:velocity=max(0,velocity-0x60)
+                elif old['p2held']==0 and velocity<0:velocity=min(0,velocity+0x60)
+                x=max(0x1000,min(0xe000,x+velocity))
+            else:
+                if old['p2held']==1:x=min(x+0x100,0xe000)
+                if old['p2held']==2:x=max(x-0x100,0x1000)
         assert new['p2x']==x,(name,old,new)
+        if native_p2:assert new['p2velocity']==velocity,(name,old,new)
         clock=old['p2attack_clock'];damage=old['p1damage'];hits=old['p2hits']
         if old['phase']!=5 and clock:
             clock+=1
@@ -107,7 +122,8 @@ def run(exe,rom,root,name,events,points,stop):
         checked+=1
     assert unserviced==0,(name,unserviced)
     (root/(name+'.json')).write_text(json.dumps(data,indent=2)+'\n',encoding='utf-8')
-    return {'events':events,'deliveries':delivered,'oracle_intervals':checked,'unserviced_intervals':unserviced,
+    return {'command':cmd,'frame_series_sha256':sha(frames.read_bytes()),'keyboard_witness_sha256':sha(witness.read_bytes()),
+            'events':events,'deliveries':delivered,'oracle_intervals':checked,'unserviced_intervals':unserviced,
             'observations':[{'vbl':p['frame'],'cycle':p['cycle'],**s} for p,s in zip(series['samples'],states)]}
 
 def test(exe,root):
