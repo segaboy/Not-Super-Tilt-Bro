@@ -309,6 +309,15 @@ the non-native two-player suite passed with its prior ROM identity in
 SHA-256 remained `370f7a12a31bed9908813686a0cbd6bb197065b5e5d3e443fc48ad843e69f28d`.
 This is model evidence and does not establish a complete match or hardware result.
 
+The same eight combat scenarios also passed against the rebuilt active-profile
+BootHush twin SHA-256
+`678f374a8adad6a32ea31f8da69ccf15c75f6568a7d679f56bbb73952e93890b`,
+in `C:/Repos/.task-temp/nstb-active-twin-combat-20261115-a/report.json`.
+BootHush's independent title/input integration also passed with this ROM.
+The executable's source-build scope and retained dependency are recorded in
+`C:/Repos/boothush/docs/active-profile-build-20261115.md`; this adds no
+physical-hardware or playable-game claim.
+
 Reproduce with a fresh output directory outside the repository:
 
 ```powershell
