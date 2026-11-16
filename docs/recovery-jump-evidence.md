@@ -1,5 +1,21 @@
 # Jump out of side-attack recovery
 
+Capture addition, 2026-11-16: `scripts/capture_recovery_evidence.py` renders
+the pinned 34-case result's player-one and player-two early-held recovery
+captures side by side. The original-art GIF contains VBL 50-81 at 100 ms per
+sample (approximately six times slower than modeled time); these are two
+independent runs, not a simultaneous two-player recording. The receipt is
+`C:/Repos/.task-temp/nstb-recovery-media-20261116-a/capture.json` and the GIF
+SHA-256 is `140c5ce0b60cd4db62819b975c44912a077c9ad4b0b48325bd40a4a961106d92`.
+The PNG/GIF were visually inspected. This makes the existing port result
+reviewable without representing it as a completed playable match.
+
+The receiving ClasSICK project now records buffered Mac input, a separate
+original 286 installer and final-image parity in
+`C:/Repos/ClasSICK-0.97/docs/development/paired-preview-readiness-20261116.md`.
+The cross-project contribution remains the BootHush observation method and
+hardware evidence; no game-derived code enters ClasSICK.
+
 2026-11-16. The native-jab title lets either player cut side-tilt recovery
 with jump alone or one horizontal direction plus jump. It waits until the
 remaining recovery clock is strictly below 14, clears the side-attack state
