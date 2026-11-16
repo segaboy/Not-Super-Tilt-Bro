@@ -114,6 +114,7 @@ def main():
             if len(memory)!=107 or not sample['processed'] or not sample['image_available']:raise ValueError('missing sample')
             state=decode({'memory':{'bytes':memory[:58].hex()}})
             state.update({'p1button':memory[33],'p1mask':memory[21],'p1jumpbutton':memory[30],
+                          'p1jump_state':memory[24],'p1jump_clock':memory[25],'p1jump_count':memory[31],
                           'p2mask':memory[41],'p2jumpbutton':memory[56],
                           'p1jab':list(memory[90:93]),'p2jab':list(memory[94:97]),
                           'p1new':memory[98],'p2new':memory[99],
@@ -143,8 +144,13 @@ def main():
                 if (new[prefix+'jab'],new[prefix+'new'])!=([stage,clock,previous],newflag):
                     raise ValueError(name+': jab state mismatch '+str((prefix,old,new)))
                 stage,clock=old[prefix+'side'];newflag=old[prefix+'sidenew']
+                cut=False
                 if old['phase']!=5 and stage:
-                    if newflag:newflag=0
+                    cut=(stage==3 and clock<14 and old[prefix+'jumpbutton'] and
+                         not old[button] and old[prefix+'mask']!=3 and
+                         old[prefix+'jump_state']==0)
+                    if cut:stage=0;clock=0;newflag=0
+                    elif newflag:newflag=0
                     else:
                         clock-=1
                         if clock==0:
@@ -153,6 +159,9 @@ def main():
                             else:stage=0
                 if (new[prefix+'side'],new[prefix+'sidenew'])!=([stage,clock],newflag):
                     raise ValueError(name+': side-tilt state mismatch '+str((prefix,old,new)))
+                if cut and (new[prefix+'jump_state'],new[prefix+'jump_clock'],new[prefix+'jump_count'],
+                            new['attack_clock' if prefix=='p1' else 'p2attack_clock']) != (1,1,old[prefix+'jump_count']+1,0):
+                    raise ValueError(name+': recovery jump handoff mismatch')
             checks+=1
         if checks<15:raise ValueError(name+': insufficient unchanged-input intervals')
         return {'command':[str(x) for x in cmd],'keyboard_witness_sha256':sha(witness),
@@ -218,6 +227,48 @@ def main():
                 if 'side-tilt state mismatch' not in str(exc) and 'side-tilt initial duration mismatch' not in str(exc):raise
             else:raise ValueError(name+': side timing mutation escaped')
             side_controls[name+'-stage%d'%stage]={'rom_sha256':sha(path),'oracle_rejected':True}
+    recovery_cases={}
+    for prefix,right,left,attack,jump in (('p1',0,1,3,2),('p2',4,5,6,7)):
+        base=[(3500000,right,1),(3900000,attack,1),(4300000,attack,0)]
+        variations={
+            'early_hold':base+[(4700000,jump,1)],
+            'early_tap':base+[(4700000,jump,1),(6500000,jump,0)],
+            'late_press':base+[(9200000,jump,1)],
+            'attack_block':[(3500000,right,1),(3900000,attack,1),(4700000,jump,1)],
+            'opposed_block':base+[(4500000,left,1),(4700000,jump,1)],
+            'neutral_jump':base+[(4500000,right,0),(4700000,jump,1)],
+        }
+        for kind,events in variations.items():
+            name=prefix+'_recovery_'+kind
+            result=run(name,events,points=range(50,82),stop=11000000)
+            observations=result['observations'];last=observations[-1]
+            want=1 if kind in ('early_hold','late_press','neutral_jump') else 0
+            if last[prefix+'jump_count']!=want:
+                raise ValueError(name+': unexpected jump count')
+            if want:
+                if not any(s[prefix+'jump_state']==2 for s in observations):
+                    raise ValueError(name+': no takeoff after recovery cut')
+                if not any(s[prefix+'side']==[3,14] and s[prefix+'jump_count']==0 for s in observations):
+                    raise ValueError(name+': threshold-14 boundary missing')
+                if not any(s[prefix+'side']==[3,13] and s[prefix+'jump_count']==0 for s in observations):
+                    raise ValueError(name+': threshold-13 boundary missing')
+            other='p2' if prefix=='p1' else 'p1'
+            if any(s[other+'jump_count'] or s[other+'side']!=[0,0] for s in observations):
+                raise ValueError(name+': other player changed')
+            cases[name]=result;recovery_cases[name]=events
+    recovery_controls={}
+    for prefix,clock in (('p1',P1SIDE_CLOCK),('p2',P2SIDE_CLOCK)):
+        needle=bytes.fromhex('0c39000e')+be32(clock)
+        if image.count(needle)!=1:raise ValueError('recovery threshold mutation site changed')
+        for threshold in (13,15):
+            name=prefix+'_recovery_threshold_'+str(threshold)
+            altered=image.replace(needle,bytes.fromhex('0c3900')+bytes((threshold,))+be32(clock),1)
+            path=out/(name+'.rom');path.write_bytes(altered)
+            try:run(name,recovery_cases[prefix+'_recovery_early_hold'],path,range(50,82),11000000)
+            except ValueError as exc:
+                if 'side-tilt state mismatch' not in str(exc):raise
+            else:raise ValueError(name+': threshold mutant escaped')
+            recovery_controls[name]={'rom_sha256':sha(path),'oracle_rejected':True}
     input_controls={}
     for name,address in (('p1_direction_combo',HELD_MASK),('p2_direction_combo',P2MASK),
                          ('p1_jump_combo',JBUTTON),('p2_jump_combo',P2JBUTTON)):
@@ -290,6 +341,7 @@ def main():
             'stage_damage_mutations':damage_controls,
             'input_normalization_mutations':input_controls,
             'side_tilt_mutations':side_controls,
+            'recovery_jump_mutations':recovery_controls,
             'mutation':{'rom_sha256':sha(mutant_rom),'oracle_rejected':True},
             'limits':'Mouse/keyboard schedules and original placeholder pixels in BootHush; local collision/display adapter, not complete game, physical input or source-matched NES execution.'}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

@@ -23,6 +23,10 @@ An opt-in, source-derived side-tilt timing slice now handles a grounded
 direction-plus-attack for both players; its movement, collisions and art are
 still local placeholders. See [side-tilt evidence](docs/side-tilt-evidence.md).
 
+Both players can now [jump out of late side-attack recovery](docs/recovery-jump-evidence.md).
+Held early input is retried, released taps and unsupported combinations are
+refused, and native movement calls are checked again after the jump transition.
+
 ## Approach
 
 - Use [BootHush](https://github.com/segaboy/boothush) headlessly for source and target testing. Report missing capabilities instead of silently switching emulators. Emulator observations are not proof of physical hardware behavior.

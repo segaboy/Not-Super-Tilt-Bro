@@ -157,6 +157,26 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label(prefix+'_cap')
         e.put(move_byte(254,damage))
         e.label(prefix+'_done')
+    def side_jump_cut(prefix,side,clock,new_flag,attack_clock,attack_button,
+                      directions,jump_button,jump_state,jump_clock,jump_count):
+        # PAL recovery accepts a jump below (18 - 4) remaining ticks.
+        # Recheck held input each playable tick, including a make received
+        # during windup. Only implemented idle-table jump combinations enter.
+        e.if_byte(side,3,prefix+'_recovery')
+        e.jump(prefix+'_done')
+        e.label(prefix+'_recovery')
+        e.put(bytes.fromhex('0c39000e')+be32(clock))
+        e.cond(0x65,prefix+'_done') # unsigned >= 14: still locked
+        e.if_byte(jump_button,0,prefix+'_done')
+        e.if_byte(attack_button,1,prefix+'_done')
+        e.if_byte(directions,3,prefix+'_done')
+        e.if_byte(jump_state,0,prefix+'_begin')
+        e.jump(prefix+'_done')
+        e.label(prefix+'_begin')
+        for address in (side,clock,new_flag,attack_clock):e.put(move_byte(0,address))
+        e.put(move_byte(1,jump_state)+move_byte(0,jump_clock))
+        e.put(bytes.fromhex('5239')+be32(jump_count))
+        e.label(prefix+'_done')
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
     e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
@@ -373,6 +393,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.put(bytes.fromhex('5239')+be32(PHASE))
     e.if_byte(PHASE,6,'skip')
     e.word('5279',TICKS)
+    if native_jab is not None:
+        side_jump_cut('p1_side_jump',P1SIDE,P1SIDE_CLOCK,P1SIDE_NEW,ACLOCK,ABUTTON,
+                      HELD_MASK,JBUTTON,JSTATE,JCLOCK,JCOUNT)
+        side_jump_cut('p2_side_jump',P2SIDE,P2SIDE_CLOCK,P2SIDE_NEW,P2ACLOCK,P2ABUTTON,
+                      P2MASK,P2JBUTTON,P2JSTATE,P2JCLOCK,P2JCOUNT)
     if combat:
         e.if_byte(ACLOCK,0,'attack_movement_clear')
         # Direction events can set velocity while a jab is active. Keep the

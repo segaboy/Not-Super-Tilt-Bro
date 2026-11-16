@@ -112,6 +112,9 @@ normalization for the attributed source-derived changed-input behavior.
 The later side-tilt timing slice is attributed separately in
 [side-tilt evidence](side-tilt-evidence.md); the full input dispatch remains
 unimplemented.
+The recovery-jump follow-up adapts the same pinned Sinbad recovery input
+threshold and idle-table jump subset; its exact source identities and local
+tick/input-order limitations are in [recovery-jump evidence](recovery-jump-evidence.md).
 The later optional title integration uses a local keyboard-to-button adapter,
 placeholder graphics and collision logic; these do not reproduce the upstream
 game's complete input combinations, animation or hitboxes.

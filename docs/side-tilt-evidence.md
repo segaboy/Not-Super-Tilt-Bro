@@ -2,6 +2,10 @@
 <!-- Copyright (C) 2026 Dean Howell. -->
 # Grounded side-tilt timing experiment
 
+2026-11-16 follow-up: the native-jab title now implements the narrow
+[recovery jump cut](recovery-jump-evidence.md). The no-recovery-jump statement
+below describes the preceding checkpoint; the other limitations remain.
+
 The opt-in mouse-title prototype now starts a side attack for either player
 when exactly one horizontal direction and attack are pressed on the ground.
 The source-derived PAL timing has 12 windup, 12 active, and 18 recovery ticks.

@@ -13,7 +13,10 @@ import struct
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-ROM_SHA = '81a8d80ba392f58a953a14887587b888c11961b8711bd0916463022558cfd4e6'
+ROM_LAYOUTS = {
+    '81a8d80ba392f58a953a14887587b888c11961b8711bd0916463022558cfd4e6': 38404,
+    '0210d56550976e60ea3f38e3af9655a4faea34313a5ffe81aaeb7923daf26790': 38728,
+}
 TARGETS = {'movement': 0x40E000, 'jab_begin': 0x40E200, 'jab_tick': 0x40E216}
 SCENARIOS = {'neutral': (), 'right': ((3500000, 0), (3700000, 4)),
              'left': ((3500000, 1), (3700000, 5)),
@@ -44,18 +47,21 @@ def main():
     a = p.parse_args(); exe = a.boothush.resolve(strict=True); rom = a.rom.resolve(strict=True)
     out = a.output.resolve()
     if out == ROOT or ROOT in out.parents: p.error('output must be outside repository')
-    if sha(rom) != ROM_SHA: p.error('unreviewed prototype ROM')
+    if sha(rom) not in ROM_LAYOUTS: p.error('unreviewed prototype ROM')
     identity = {'rom': sha(rom), 'emulator': sha(exe), 'script': sha(Path(__file__))}
     image = rom.read_bytes(); out.mkdir(parents=True, exist_ok=False)
     attempts = []; cases = []; controls = []
 
-    def run(name, selected_rom, pc, events, registers=True):
+    def run(name, selected_rom, pc, events, registers=True, after_cycle=None):
         frame = out/(name+'.pbm')
         cmd = [str(exe), '--machine', 'mac128k', '--rom', str(selected_rom), '--cycles', '10000000',
                '--timeout-ms', '20000', '--mouse-button', '2000000:1', '--mouse-button', '2400000:0',
                '--until-pc', str(pc), '--inspect', '0xb00:108', '--frame', str(frame)]
         if registers: cmd += ['--mac-cpu-state', '1']
-        for cycle, key in events: cmd += ['--key', f'{cycle}:{key}:1']
+        if after_cycle is not None: cmd += ['--until-pc-after', str(after_cycle)]
+        for event in events:
+            cycle,key,*state=event
+            cmd += ['--key', f'{cycle}:{key}:{state[0] if state else 1}']
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=25,
                            creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
         (out/(name+'.log')).write_text(r.stdout+r.stderr, encoding='utf-8')
@@ -66,8 +72,9 @@ def main():
 
     for component, target in TARGETS.items():
         pattern = bytes.fromhex('4eb9') + struct.pack('>I', target)
-        sites = [offset for offset in range(0x104, 38404, 2) if image[offset:offset+6] == pattern]
-        if not sites: raise ValueError('missing original call sites: '+component)
+        sites = [offset for offset in range(0x104, ROM_LAYOUTS[sha(rom)], 2) if image[offset:offset+6] == pattern]
+        if len(sites) != (6 if component=='movement' else 2):
+            raise ValueError('unexpected original call sites: '+component)
         for site in sites:
             label = component+'-'+format(site, 'x'); pc = 0x400000+site
             for scenario, events in SCENARIOS.items():
@@ -97,10 +104,31 @@ def main():
                 break
             else:
                 raise ValueError('no scenario reached call site '+label)
+    recovery=[]
+    if ROM_LAYOUTS[sha(rom)] == 38728:
+        events=((3500000,0,1),(3700000,4,1),(3900000,3,1),(4100000,6,1),
+                (4300000,3,0),(4500000,6,0),(4700000,2,1),(4900000,7,1))
+        for case in [c for c in cases if c['component']=='movement' and c['scenario']=='right']:
+            pc=case['site'];name='recovery-'+format(pc,'x')
+            before,first=run(name+'-before',rom,pc,events,after_cycle=9500000)
+            if before['status']!='condition_met':raise ValueError('post-recovery call not reached')
+            memory=bytes.fromhex(before['memory']['bytes'])
+            if (memory[24],memory[50],memory[101],memory[103],memory[31],memory[57]) != (2,2,0,0,1,1):
+                raise ValueError('post-recovery calls were not reached during both jumps')
+            after,second=run(name+'-after',rom,pc+6,events,after_cycle=before['cycles'])
+            errors=compare(before,after)
+            if errors or first.read_bytes()!=second.read_bytes():raise ValueError('recovery preservation '+repr(errors))
+            plain,frame=run(name+'-plain',rom,pc+6,events,False,after_cycle=before['cycles'])
+            if plain!={k:v for k,v in after.items() if k!='cpu'} or frame.read_bytes()!=second.read_bytes():
+                raise ValueError('recovery observation perturbed guest')
+            recovery.append({'site':pc,'call_cycles':after['cycles']-before['cycles'],
+                             'before_cycle':before['cycles'],'after_cycle':after['cycles'],'both_airborne':True})
+        if len(recovery)!=2:raise ValueError('missing post-recovery player calls')
     if sha(rom) != identity['rom'] or sha(exe) != identity['emulator']:
         raise ValueError('input changed during native call tests')
     report = {'status': 'pass', 'identities': identity, 'cases': cases, 'controls': controls, 'attempts': attempts,
-              'limits': 'First reached calls in four bounded synthetic-input scenarios. No arbitrary-call, physical, playable-match or historical compatibility proof; game code remains port-only.'}
+              'recovery_calls':recovery,
+              'limits': 'Selected first and post-recovery calls in bounded synthetic-input scenarios. No arbitrary-call, physical, playable-match or historical compatibility proof; game code remains port-only.'}
     (out/'report.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(json.dumps({'status': 'pass', 'call_sites': len(cases), 'controls': len(controls), 'report': str(out/'report.json')}))
 
