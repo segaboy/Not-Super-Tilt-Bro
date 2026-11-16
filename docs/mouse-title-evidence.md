@@ -354,3 +354,13 @@ ROM identities are unchanged. Final receipts are
 `C:/Repos/.task-temp/nstb-table-title-final-20261116-a/summary.json`,
 `C:/Repos/.task-temp/nstb-table-axis-final-20261116-a/report.json`, and
 `C:/Repos/.task-temp/nstb-table-native-final-20261116-a/report.json`.
+
+ClasSICK used this original polling control and BootHush's new instruction
+witness to distinguish polling gaps from interrupt exclusion. Its
+[pinned receipt](https://github.com/segaboy/ClasSICK-0.97/blob/86e6d2c/docs/development/windows-m68k-toolchain-20261114.md#interrupt-mask-and-instruction-cost-investigation-2026-11-16)
+records shorter measured interrupt spans after its own inbox changes, alongside
+the continuing fast-input failure. For this port, the transferable lesson is
+to compare full endpoints and untraced controls as well as average sampling
+cost: a faster decoder alone does not guarantee correct movement. The receipt
+owns the detailed measurements; no game-derived implementation was sent to
+ClasSICK, and neither project's result establishes physical behavior.
