@@ -14,8 +14,10 @@ runs as native 68000 C in an opt-in mouse-title, keyboard-play ROM for both
 players. Its local collision and graphics remain placeholders, and it does
 not establish a playable match. Its three jab stages now apply source-derived
 damage values through that local collision rule.
-Direction or jump combined with attack is distinguished from a neutral jab;
-side tilts and the rest of the input dispatch remain to be implemented.
+Direction or jump combined with attack is distinguished from a neutral jab.
+An opt-in, source-derived side-tilt timing slice now handles a grounded
+direction-plus-attack for both players; its movement, collisions and art are
+still local placeholders. See [side-tilt evidence](docs/side-tilt-evidence.md).
 
 ## Approach
 

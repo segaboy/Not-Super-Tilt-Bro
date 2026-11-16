@@ -9,8 +9,8 @@ import os
 from pathlib import Path
 import subprocess
 
-from build_mac_movement import build,DAMAGE,P1DAMAGE,HELD_MASK,P2MASK,JBUTTON,P2JBUTTON
-from build_mac_probe import be32
+from build_mac_movement import build,DAMAGE,P1DAMAGE,HELD_MASK,P2MASK,JBUTTON,P2JBUTTON,P1SIDE,P1SIDE_CLOCK,P2SIDE,P2SIDE_CLOCK
+from build_mac_probe import be32,move_byte
 from test_mac_two_player import decode,pixels
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -86,12 +86,16 @@ def main():
                          (4200000,6,1),(6200000,7,0),(7500000,6,0)],
         'p1_start_direction':[(3500000,0,1),(3900000,3,1),(5500000,3,0),(5900000,0,0)],
         'p2_start_direction':[(3500000,4,1),(3900000,6,1),(5500000,6,0),(5900000,4,0)],
+        'p1_side_hit':[(3500000,5,1),(4200000,5,0),(4300000,0,1),(4500000,3,1),
+                       (4700000,0,0),(4900000,3,0)],
+        'p2_side_hit':[(3500000,5,1),(4200000,6,1),(4400000,5,0),(4600000,6,0)],
+        'p1_side_miss':[(3500000,1,1),(3900000,3,1),(4300000,1,0),(4500000,3,0)],
     }
     def run(name,events,selected_rom=rom,points=range(32,64),stop=9200000):
         frames=out/(name+'.pbmseq');witness=out/(name+'.keyboard')
         cmd=[exe,'--machine','mac128k','--rom',selected_rom,'--cycles',str(stop),'--timeout-ms','20000',
              '--mouse-button','2000000:1','--mouse-button','2400000:0','--capture-series',frames,
-             '--capture-memory','0xb00:101','--keyboard-witness',witness]
+             '--capture-memory','0xb00:107','--keyboard-witness',witness]
         for frame in points:cmd+=['--capture-vbl',str(frame)]
         for cycle,key,down in events:cmd+=['--key',f'{cycle}:{key}:{down}']
         data=json.loads(invoke(cmd,out/(name+'.log')));series=data['frame_series']
@@ -107,12 +111,14 @@ def main():
         raw=frames.read_bytes();states=[]
         for sample in series['samples']:
             memory=bytes.fromhex(sample['memory']['bytes'])
-            if len(memory)!=101 or not sample['processed'] or not sample['image_available']:raise ValueError('missing sample')
+            if len(memory)!=107 or not sample['processed'] or not sample['image_available']:raise ValueError('missing sample')
             state=decode({'memory':{'bytes':memory[:58].hex()}})
             state.update({'p1button':memory[33],'p1mask':memory[21],'p1jumpbutton':memory[30],
                           'p2mask':memory[41],'p2jumpbutton':memory[56],
                           'p1jab':list(memory[90:93]),'p2jab':list(memory[94:97]),
-                          'p1new':memory[98],'p2new':memory[99]})
+                          'p1new':memory[98],'p2new':memory[99],
+                          'p1side':list(memory[101:103]),'p2side':list(memory[103:105]),
+                          'p1sidenew':memory[105],'p2sidenew':memory[106]})
             pixels(raw[sample['offset']:sample['offset']+sample['length']],state)
             states.append(state)
         checks=0
@@ -136,6 +142,17 @@ def main():
                                     previous=current
                 if (new[prefix+'jab'],new[prefix+'new'])!=([stage,clock,previous],newflag):
                     raise ValueError(name+': jab state mismatch '+str((prefix,old,new)))
+                stage,clock=old[prefix+'side'];newflag=old[prefix+'sidenew']
+                if old['phase']!=5 and stage:
+                    if newflag:newflag=0
+                    else:
+                        clock-=1
+                        if clock==0:
+                            if stage==1:stage=2;clock=12
+                            elif stage==2:stage=3;clock=18
+                            else:stage=0
+                if (new[prefix+'side'],new[prefix+'sidenew'])!=([stage,clock],newflag):
+                    raise ValueError(name+': side-tilt state mismatch '+str((prefix,old,new)))
             checks+=1
         if checks<15:raise ValueError(name+': insufficient unchanged-input intervals')
         return {'command':[str(x) for x in cmd],'keyboard_witness_sha256':sha(witness),
@@ -164,6 +181,43 @@ def main():
     for name,prefix in (('p1_start_direction','p1'),('p2_start_direction','p2')):
         if any(s[prefix+'jab'][0] for s in cases[name]['observations']):
             raise ValueError(name+': directional attack started a neutral jab')
+        if not {1,2,3}.issubset({s[prefix+'side'][0] for s in cases[name]['observations']}):
+            raise ValueError(name+': side-tilt stages missing')
+        if not any(s[prefix+'side']==[1,12] for s in cases[name]['observations']):
+            raise ValueError(name+': side-tilt initial duration mismatch')
+    for name,damage,hits in (('p1_side_hit','damage','hits'),('p2_side_hit','p1damage','p2hits')):
+        last=cases[name]['observations'][-1]
+        if (last[damage],last[hits])!=(2,1):raise ValueError(name+': local side hit missing')
+    if cases['p1_side_miss']['observations'][-1]['hits']!=0:raise ValueError('side attack hit a distant target')
+    for name,prefix,key,attack in (('p1_side_recovery','p1',0,3),('p2_side_recovery','p2',4,6)):
+        cases[name]=run(name,[(3500000,key,1),(3900000,attack,1),(5500000,attack,0)],
+                        points=range(65,97),stop=14500000)
+        states=cases[name]['observations']
+        locked=[s for s in states if s[prefix+'side'][0]==3]
+        resumed=[s for s in states if s[prefix+'side'][0]==0]
+        if not locked or not resumed:
+            raise ValueError(name+': recovery or return to idle missing')
+        # Facing outward here means both original movement directions increase
+        # their respective player coordinates; compare against recovery's end.
+        position='x' if prefix=='p1' else 'p2x'
+        if len({s[position] for s in locked})!=1 or resumed[-1][position]<=locked[-1][position]:
+            raise ValueError(name+': held movement did not resume after recovery')
+    side_controls={}
+    for name,state,clock in (('p1_start_direction',P1SIDE,P1SIDE_CLOCK),('p2_start_direction',P2SIDE,P2SIDE_CLOCK)):
+        for stage in (1,2):
+            needle=move_byte(stage,state)+move_byte(12,clock)
+            if image.count(needle)!=1:raise ValueError(name+': side timing mutation site changed')
+            path=out/(name+'-side%d-mutant.rom'%stage)
+            path.write_bytes(image.replace(needle,move_byte(stage,state)+move_byte(11,clock),1))
+            try:
+                mutated=run(name+'-side%d-mutant'%stage,scenarios[name],path)
+                prefix='p1' if name.startswith('p1') else 'p2'
+                if stage==1 and not any(s[prefix+'side']==[1,12] for s in mutated['observations']):
+                    raise ValueError('side-tilt initial duration mismatch')
+            except ValueError as exc:
+                if 'side-tilt state mismatch' not in str(exc) and 'side-tilt initial duration mismatch' not in str(exc):raise
+            else:raise ValueError(name+': side timing mutation escaped')
+            side_controls[name+'-stage%d'%stage]={'rom_sha256':sha(path),'oracle_rejected':True}
     input_controls={}
     for name,address in (('p1_direction_combo',HELD_MASK),('p2_direction_combo',P2MASK),
                          ('p1_jump_combo',JBUTTON),('p2_jump_combo',P2JBUTTON)):
@@ -235,6 +289,7 @@ def main():
             'input_sha256':before,'commands':commands,'cases':cases,
             'stage_damage_mutations':damage_controls,
             'input_normalization_mutations':input_controls,
+            'side_tilt_mutations':side_controls,
             'mutation':{'rom_sha256':sha(mutant_rom),'oracle_rejected':True},
             'limits':'Mouse/keyboard schedules and original placeholder pixels in BootHush; local collision/display adapter, not complete game, physical input or source-matched NES execution.'}
     (out/'report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')

@@ -157,9 +157,10 @@ slice's `OTHER` input, and starts a neutral jab only when neither is held.
 During an existing jab, releasing the other input while attack remains held
 can make the input neutral-jab again, subject to the source-derived cut
 window. This is a local normalization of the source's changed-input
-distinction. Side tilts and other attacks are not implemented: pressing
-attack with a direction held at the start does not yet produce a side tilt.
-Other button combinations and idle re-entry remain incomplete.
+distinction. At the time of this test, pressing attack with a direction held
+did not produce a side tilt. The later bounded implementation and its limits
+are recorded in [side-tilt evidence](side-tilt-evidence.md). Other button
+combinations and idle re-entry remain incomplete.
 
 Both players were tested for direction-plus-attack and jump-plus-attack
 through the mouse-started prototype, plus neutral-jab refusal when starting

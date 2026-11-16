@@ -24,6 +24,7 @@ P2ACLOCK, P2ABUTTON, P1DAMAGE, P2ATTACKS, P2HITS = [DIAG+x for x in (44,45,46,47
 P2JSTATE, P2JCLOCK, P2JVEL, P2HEIGHT, P2JBUTTON, P2JCOUNT = [DIAG+x for x in (50,51,52,54,56,57)]
 P2VEL = DIAG + 88  # experimental C movement velocity; separate from title scratch
 P1JAB, P2JAB, P1JAB_NEW, P2JAB_NEW, JAB_PREVIOUS = [DIAG+x for x in (90,94,98,99,100)]
+P1SIDE, P1SIDE_CLOCK, P2SIDE, P2SIDE_CLOCK, P1SIDE_NEW, P2SIDE_NEW = [DIAG+x for x in (101,102,103,104,105,106)]
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
@@ -121,9 +122,30 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label(prefix+'_new')
         e.put(move_byte(0,new_flag))
         e.label(prefix+'_done')
-    def jab_damage(prefix,jab,damage):
+    def side_tick(prefix,state,clock,new_flag,attack_clock):
+        e.if_byte(state,0,prefix+'_done')
+        e.if_byte(new_flag,1,prefix+'_new')
+        e.put(bytes.fromhex('5339')+be32(clock)) # SUBQ.B #1
+        e.if_byte(clock,0,prefix+'_next')
+        e.jump(prefix+'_done')
+        e.label(prefix+'_next')
+        e.if_byte(state,1,prefix+'_hit')
+        e.if_byte(state,2,prefix+'_recovery')
+        e.put(move_byte(0,state)+move_byte(0,attack_clock))
+        e.jump(prefix+'_done')
+        e.label(prefix+'_hit')
+        e.put(move_byte(2,state)+move_byte(12,clock)+move_byte(1,attack_clock))
+        e.jump(prefix+'_done')
+        e.label(prefix+'_recovery')
+        e.put(move_byte(3,state)+move_byte(18,clock)+move_byte(1,attack_clock))
+        e.jump(prefix+'_done')
+        e.label(prefix+'_new')
+        e.put(move_byte(0,new_flag))
+        e.label(prefix+'_done')
+    def jab_damage(prefix,jab,side,damage):
         # Source-derived PAL jab damage values, applied to this prototype's
         # local collision rule. The 254 saturation is a local display policy.
+        e.if_byte(side,2,prefix+'_stage1') # local prototype side-hit amount
         for stage in (1,2,3):e.if_byte(jab,stage,prefix+'_stage'+str(stage))
         e.jump(prefix+'_done')
         for stage,amount in ((1,2),(2,1),(3,5)):
@@ -152,7 +174,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     if native_jab is not None:
-        for off in range(90,101):e.put(move_byte(0,DIAG+off))
+        for off in range(90,107):e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
@@ -235,7 +257,15 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('attack_begin')
         if native_jab is not None:
             e.if_byte(HELD_MASK,0,'p1_jab_neutral_direction')
+            e.if_byte(JBUTTON,0,'p1_side_check_direction')
             e.jump('pace')
+            e.label('p1_side_check_direction')
+            e.if_byte(HELD_MASK,1,'p1_side_begin')
+            e.if_byte(HELD_MASK,2,'p1_side_begin')
+            e.jump('pace')
+            e.label('p1_side_begin')
+            e.put(move_byte(1,P1SIDE)+move_byte(12,P1SIDE_CLOCK)+move_byte(1,P1SIDE_NEW)+move_byte(1,ACLOCK))
+            e.setword(0,VEL);e.put(bytes.fromhex('5239')+be32(ATTACKS));e.jump('pace')
             e.label('p1_jab_neutral_direction')
             e.if_byte(JBUTTON,0,'p1_jab_neutral_jump')
             e.jump('pace')
@@ -275,7 +305,15 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('p2_attack_begin')
         if native_jab is not None:
             e.if_byte(P2MASK,0,'p2_jab_neutral_direction')
+            e.if_byte(P2JBUTTON,0,'p2_side_check_direction')
             e.jump('pace')
+            e.label('p2_side_check_direction')
+            e.if_byte(P2MASK,1,'p2_side_begin')
+            e.if_byte(P2MASK,2,'p2_side_begin')
+            e.jump('pace')
+            e.label('p2_side_begin')
+            e.put(move_byte(1,P2SIDE)+move_byte(12,P2SIDE_CLOCK)+move_byte(1,P2SIDE_NEW)+move_byte(1,P2ACLOCK))
+            e.setword(0,P2VEL);e.put(bytes.fromhex('5239')+be32(P2ATTACKS));e.jump('pace')
             e.label('p2_jab_neutral_direction')
             e.if_byte(P2JBUTTON,0,'p2_jab_neutral_jump')
             e.jump('pace')
@@ -566,13 +604,20 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,JSTATE))
     e.label('draw')
     if combat:
-        if native_jab is not None:jab_tick_call('p1_jab_c',P1JAB,P1JAB_NEW,ABUTTON,HELD_MASK,JBUTTON,ACLOCK,ATTACKS)
+        if native_jab is not None:
+            side_tick('p1_side_tick',P1SIDE,P1SIDE_CLOCK,P1SIDE_NEW,ACLOCK)
+            jab_tick_call('p1_jab_c',P1JAB,P1JAB_NEW,ABUTTON,HELD_MASK,JBUTTON,ACLOCK,ATTACKS)
         e.if_byte(ACLOCK,0,'draw_body')
         e.put(bytes.fromhex('5239')+be32(ACLOCK))
         e.if_byte(ACLOCK,7,'attack_hit_check')
         if native_jab is None:e.if_byte(ACLOCK,25,'attack_end')
         e.jump('draw_body')
         e.label('attack_hit_check')
+        if native_jab is not None:
+            e.if_byte(P1SIDE,0,'p1_hit_allowed')
+            e.if_byte(P1SIDE,2,'p1_hit_allowed')
+            e.jump('draw_body')
+            e.label('p1_hit_allowed')
         if two_player:
             e.word('3039',P2HEIGHT)
             e.cmpw(0)
@@ -596,7 +641,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.cmpw(0x2000 if two_player else 0xc800)
         e.cond(0x63,'draw_body')
         e.label('attack_apply')
-        if native_jab is not None:jab_damage('p1_jab_damage',P1JAB,DAMAGE)
+        if native_jab is not None:jab_damage('p1_jab_damage',P1JAB,P1SIDE,DAMAGE)
         else:
             e.put(bytes.fromhex('0c3900fe')+be32(DAMAGE))
             e.cond(0x66,'attack_damage_capped') # equal: retain the visible maximum
@@ -608,13 +653,20 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(0,ACLOCK))
         e.label('draw_body')
         if two_player:
-            if native_jab is not None:jab_tick_call('p2_jab_c',P2JAB,P2JAB_NEW,P2ABUTTON,P2MASK,P2JBUTTON,P2ACLOCK,P2ATTACKS)
+            if native_jab is not None:
+                side_tick('p2_side_tick',P2SIDE,P2SIDE_CLOCK,P2SIDE_NEW,P2ACLOCK)
+                jab_tick_call('p2_jab_c',P2JAB,P2JAB_NEW,P2ABUTTON,P2MASK,P2JBUTTON,P2ACLOCK,P2ATTACKS)
             e.if_byte(P2ACLOCK,0,'p2_attack_done')
             e.put(bytes.fromhex('5239')+be32(P2ACLOCK))
             e.if_byte(P2ACLOCK,7,'p2_attack_check')
             if native_jab is None:e.if_byte(P2ACLOCK,25,'p2_attack_end')
             e.jump('p2_attack_done')
             e.label('p2_attack_check')
+            if native_jab is not None:
+                e.if_byte(P2SIDE,0,'p2_hit_allowed')
+                e.if_byte(P2SIDE,2,'p2_hit_allowed')
+                e.jump('p2_attack_done')
+                e.label('p2_hit_allowed')
             e.word('3039',JHEIGHT)
             e.cmpw(0)
             e.cond(0x67,'p2_attack_done') # prototype target must be at floor
@@ -637,7 +689,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.cmpw(0x2000)
             e.cond(0x63,'p2_attack_done')
             e.label('p2_attack_apply')
-            if native_jab is not None:jab_damage('p2_jab_damage',P2JAB,P1DAMAGE)
+            if native_jab is not None:jab_damage('p2_jab_damage',P2JAB,P2SIDE,P1DAMAGE)
             else:
                 e.put(bytes.fromhex('0c3900fe')+be32(P1DAMAGE))
                 e.cond(0x66,'p2_damage_capped')

@@ -108,8 +108,10 @@ The prototype's three damage amounts derive from the attributed Sinbad
 animation metadata; its collision geometry, hit timing and saturation rule
 remain local choices. See [jab-chain evidence](jab-chain-evidence.md).
 The title adapter's direction/jump-to-OTHER mapping is a local keyboard
-normalization for the attributed source-derived changed-input behavior;
-it does not implement the upstream side-tilt or full input dispatch.
+normalization for the attributed source-derived changed-input behavior.
+The later side-tilt timing slice is attributed separately in
+[side-tilt evidence](side-tilt-evidence.md); the full input dispatch remains
+unimplemented.
 The later optional title integration uses a local keyboard-to-button adapter,
 placeholder graphics and collision logic; these do not reproduce the upstream
 game's complete input combinations, animation or hitboxes.
