@@ -45,3 +45,9 @@ observed state and control results are retained in
 `C:/Repos/.task-temp/nstb-side-tilt-20261115-e/report.json`. BootHush
 observations do not establish behavior on an original Macintosh or a human
 input test.
+
+The same suite subsequently passed with BootHush executable SHA-256
+`f795a383e4f949a62f258559041cf3dc5360b0cca29a2f146cb2507fd496b8cc`,
+which adds the independently tested PC reset-fault facility; its command,
+inputs and results are in
+`C:/Repos/.task-temp/nstb-reset-regression-20261115-a/report.json`.
