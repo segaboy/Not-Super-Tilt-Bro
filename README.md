@@ -27,6 +27,10 @@ Both players can now [jump out of late side-attack recovery](docs/recovery-jump-
 Held early input is retried, released taps and unsupported combinations are
 refused, and native movement calls are checked again after the jump transition.
 
+[New ClasSICK cursor evidence](docs/cursor-composition-intake-20261116.md)
+records faster byte-row drawing and a reusable response-measurement method.
+It is available for the port's mouse-title work; integration remains pending.
+
 ## Approach
 
 - Use [BootHush](https://github.com/segaboy/boothush) headlessly for source and target testing. Report missing capabilities instead of silently switching emulators. Emulator observations are not proof of physical hardware behavior.
