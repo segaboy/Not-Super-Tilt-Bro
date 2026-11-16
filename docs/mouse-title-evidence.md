@@ -346,3 +346,11 @@ python -B scripts/test_title_axis.py --boothush EXE --output NEW_AXIS_OUTPUT
 python -B scripts/test_mac_title.py --boothush EXE --keep NEW_TITLE_OUTPUT
 python -B scripts/test_native_jab_title.py --tool-bin M68K_BIN --boothush EXE --component MOVEMENT_BIN --output NEW_GAME_OUTPUT
 ```
+
+The subsequent BootHush instruction-witness build, executable SHA-256
+`cd3992737cc78ef5758a376872cac8005e7b959157b4be69349f31141c68fe9b`,
+passes the same title/replay, 160-axis-case and 22-native-scenario suites.
+ROM identities are unchanged. Final receipts are
+`C:/Repos/.task-temp/nstb-table-title-final-20261116-a/summary.json`,
+`C:/Repos/.task-temp/nstb-table-axis-final-20261116-a/report.json`, and
+`C:/Repos/.task-temp/nstb-table-native-final-20261116-a/report.json`.
