@@ -1,5 +1,7 @@
 # Mouse title and keyboard-play experiment — 2026-11-14
 
+Latest input increment: [finite phase lookup and mask trace](#finite-phase-lookup-and-mask-trace-2026-11-16).
+
 ## Question, origin and scope
 
 The owner directed a mouse-driven title/start screen followed by keyboard
@@ -275,3 +277,72 @@ output directory outside the repository. Multi-edge intervals are consistent
 with information loss during polling, but do not distinguish guest design,
 model fidelity, sampling alignment or their interaction. The reusable finding
 is the event-count method and witness result, not game-derived implementation.
+## Finite phase lookup and mask trace - 2026-11-16
+
+Question: can the original title adapter spend less time deciding a phase
+transition while retaining the mouse Start / keyboard play behavior? Starting
+from port revision `6ee7fc2928fd7d89f49fb384c4e723b5a14a5331`, the four existing
+DCD-changing Gray transitions were encoded in a 16-byte table for each axis.
+The adapter still retains the prior position at an outward boundary, saves the
+sampled phase on every pass, reverses the Y convention, and draws the original
+pointer. No game source or third-party implementation informed this change.
+The earlier phase-source attribution in this receipt continues to apply.
+
+The title ROM now uses 36,502 bytes through its emitter end, versus 36,886 for
+the control (384 fewer bytes). Its SHA-256 is
+`c693dcfebf1c9c4b1048abc50503f3462985a926dedc57fe6c5d1da25bfb7d72`.
+`scripts/test_title_axis.py` executes all 16 previous/current phase pairs at
+five positions on both axes: 160 cases, including both boundaries, unchanged
+phases and invalid two-bit jumps. A separately calculated Gray-order oracle
+checks position, dirty byte and saved phase. Changing one positive table entry
+to negative is rejected in exactly the intended case. Original fixture ROMs,
+commands and results: `C:/Repos/.task-temp/nstb-axis-table-20261116-a/report.json`.
+
+With BootHush executable SHA-256
+`f84de40301b433264fb3697bb2dcd132cdeb901a974d416e8d4482c81e73495d`,
+the existing title suite passes its 16 scenarios, 22 captured-frame replay and
+mouse-to-keyboard handoff replay. Its receipt is
+`C:/Repos/.task-temp/nstb-title-table-20261116-a/summary.json`.
+The native jab/side-tilt suite also passes all 22 scenarios and its mutation
+controls, with ROM SHA-256
+`81a8d80ba392f58a953a14887587b888c11961b8711bd0916463022558cfd4e6`:
+`C:/Repos/.task-temp/nstb-table-native-jab-20261116-a/report.json`.
+The latter contains source-derived game work and remains port-only evidence.
+
+The new BootHush `probe_mac_cpu_mask.py` compared this title ROM with the
+previous `7121c504...` control at four edge spacings. Each run requests +32 X
+pixels at cycle 1,000,000, starts from X=256, uses DCD inversion 3 / guard 4,096,
+and stops at cycle 4,000,000. All eight traced/untraced pairs have identical
+complete guest JSON and frame bytes, with no trace drops and all 64 modeled
+phase transitions delivered. Exact commands, hashes and traces:
+`C:/Repos/.task-temp/nstb-baseline-mask-20261116-a/report.json` and
+`C:/Repos/.task-temp/nstb-table-mask-20261116-a/report.json`.
+
+| Modeled edge cycles | Control final X | Lookup final X | Control mean SCC-A read interval | Lookup mean interval |
+| --- | --- | --- | --- | --- |
+| 256 | 250 | 246 | 877.30 | 781.91 |
+| 512 | 264 | 268 | 842.85 | 761.00 |
+| 768 | 280 | 287 | 867.97 | 793.44 |
+| 1,024 | 288 | 288 | 870.94 | 797.89 |
+
+Intervals are modeled cycles between successive SCC-A reads whose interval
+overlaps the first-to-last phase event. Their means are 8–11% shorter; faster
+polling does **not** imply fewer losses at every spacing, as the 256-cycle
+counterexample shows. Expected X is 288. Both ROMs remain at IPL7 throughout
+the witness range because the title polls; this is not evidence of an IRQ
+delivery defect. The trace format and censoring limits are documented in
+`C:/Repos/boothush/docs/mac-mouse-witness.md`.
+
+These are software tests and emulator observations, not a physical mouse
+rate, playable match, hardware validation or release qualification. The
+reusable finding for ClasSICK is the measurement method and the need to
+distinguish polling interval from IRQ exclusion. Game code was not transferred.
+
+Reproduce with fresh output directories and the executable/tool paths recorded
+in the reports:
+
+```powershell
+python -B scripts/test_title_axis.py --boothush EXE --output NEW_AXIS_OUTPUT
+python -B scripts/test_mac_title.py --boothush EXE --keep NEW_TITLE_OUTPUT
+python -B scripts/test_native_jab_title.py --tool-bin M68K_BIN --boothush EXE --component MOVEMENT_BIN --output NEW_GAME_OUTPUT
+```

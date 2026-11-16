@@ -93,22 +93,22 @@ def read_phase(e,axis,pbbit,scc,new):
     e.label(axis+'_sample_done')
 
 def emit_axis(e,name,previous,current,position,maximum,reverse=False):
-    # Gray edges with changed DCD bit: one pixel for two phase transitions.
-    transitions=((0,1,1),(1,0,-1),(3,2,1),(2,3,-1))
-    for index,(old,new,direction) in enumerate(transitions):
-        label=f'{name}_check_{index}';e.if_byte(previous,old,label)
+    # Original finite lookup of the same four DCD-changing Gray edges.
+    # Both sampled phases are 0..3. No game source informs this adapter.
+    e.put(bytes.fromhex('7000'));e.word('1039',previous)
+    e.put(bytes.fromhex('e548 7200'));e.word('1239',current)
+    e.put(bytes.fromhex('8041 41f9'))
+    e.patches.append((len(e.code),name+'_table'));e.put(bytes(4))
+    e.put(bytes.fromhex('10300000 4880 4a40'));e.cond(0x66,name+'_save')
+    e.word('d079',position) # ADD.W position,D0
+    e.cmpw(0);e.cond(0x6c,name+'_save') # below zero: retain bounded position
+    e.cmpw(maximum);e.cond(0x63,name+'_save') # above maximum
+    e.word('33c0',position)
+    e.put(bytes.fromhex('5239')+be32(DIRTY))
     e.jump(name+'_save')
-    for index,(old,new,direction) in enumerate(transitions):
-        e.label(f'{name}_check_{index}')
-        e.if_byte(current,new,f'{name}_move_{index}')
-        e.jump(name+'_save')
-        e.label(f'{name}_move_{index}')
-        if reverse:direction=-direction
-        e.word('3039',position);e.cmpw(maximum if direction>0 else 0)
-        e.cond(0x66,name+'_save') # at boundary, retain current position
-        e.word('5279' if direction>0 else '5379',position)
-        e.put(bytes.fromhex('5239')+be32(DIRTY))
-        e.jump(name+'_save')
+    e.label(name+'_table')
+    table=[0,1,0,0, -1,0,0,0, 0,0,0,-1, 0,0,1,0]
+    e.put(bytes(((-v if reverse else v)&255) for v in table))
     e.label(name+'_save')
     e.put(bytes.fromhex('13f9')+be32(current)+be32(previous))
 
