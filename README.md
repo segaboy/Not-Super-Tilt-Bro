@@ -9,6 +9,10 @@ also runs in an opt-in title ROM: mouse Start leads to keyboard-driven
 movement through that component for both players. The rest of the prototype
 still uses the emitter; neither build is a complete game.
 
+The [native-call preservation check](docs/native-call-preservation.md) now
+executes ten movement/jab call sites after mouse Start and verifies preserved
+registers, stack balance and observation noninterference in BootHush.
+
 A [source-derived PAL jab-chain slice](docs/jab-chain-evidence.md) now also
 runs as native 68000 C in an opt-in mouse-title, keyboard-play ROM for both
 players. Its local collision and graphics remain placeholders, and it does
