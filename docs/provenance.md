@@ -118,3 +118,10 @@ tick/input-order limitations are in [recovery-jump evidence](recovery-jump-evide
 The later optional title integration uses a local keyboard-to-button adapter,
 placeholder graphics and collision logic; these do not reproduce the upstream
 game's complete input combinations, animation or hitboxes.
+
+The native-jab title's aerial jump adapts the same pinned source's one-jump
+limit, velocity/clock reset and landing recharge. The exact four source files,
+hashes and input-dispatch differences are recorded in
+[aerial-jump evidence](aerial-jump-evidence.md). Its keyboard input rule,
+placeholder rendering, physics adapter and tests remain local game-informed
+port work, not ClasSICK implementation inputs.

@@ -27,6 +27,11 @@ Both players can now [jump out of late side-attack recovery](docs/recovery-jump-
 Held early input is retried, released taps and unsupported combinations are
 refused, and native movement calls are checked again after the jump transition.
 
+Both players can also [jump once more while airborne](docs/aerial-jump-evidence.md)
+in the native-jab title. The jump resets momentum, retains altitude, supports
+short hops, and recharges on landing. Twenty dedicated BootHush cases and the
+34-case existing jab/title suite pass; the physics and art remain placeholders.
+
 [New ClasSICK cursor evidence](docs/cursor-composition-intake-20261116.md)
 records faster byte-row drawing and a reusable response-measurement method.
 It is available for the port's mouse-title work; integration remains pending.

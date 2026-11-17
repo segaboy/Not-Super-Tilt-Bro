@@ -25,6 +25,7 @@ P2JSTATE, P2JCLOCK, P2JVEL, P2HEIGHT, P2JBUTTON, P2JCOUNT = [DIAG+x for x in (50
 P2VEL = DIAG + 88  # experimental C movement velocity; separate from title scratch
 P1JAB, P2JAB, P1JAB_NEW, P2JAB_NEW, JAB_PREVIOUS = [DIAG+x for x in (90,94,98,99,100)]
 P1SIDE, P1SIDE_CLOCK, P2SIDE, P2SIDE_CLOCK, P1SIDE_NEW, P2SIDE_NEW = [DIAG+x for x in (101,102,103,104,105,106)]
+P1AIR_USED, P2AIR_USED = DIAG+107, DIAG+108
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
@@ -177,6 +178,19 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(1,jump_state)+move_byte(0,jump_clock))
         e.put(bytes.fromhex('5239')+be32(jump_count))
         e.label(prefix+'_done')
+    def aerial_jump(prefix,state,used,velocity,attack_button,directions,begin):
+        # Reviewed Sinbad subset: one aerial jump, with a fresh jump make,
+        # alone or with one direction. Reset velocity before the same squat
+        # and short-hop clock used by the ground jump; retain current height.
+        e.if_byte(state,2,prefix+'_check')
+        e.jump('pace')
+        e.label(prefix+'_check')
+        e.if_byte(used,1,'pace')
+        e.if_byte(attack_button,1,'pace')
+        e.if_byte(directions,3,'pace')
+        e.put(move_byte(1,used))
+        e.setword(0,velocity)
+        e.jump(begin)
     e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe '
                         '41f900400000 93c9 703f 22d8 51c8fffc'))
     e.put(bytes.fromhex('41f9')+be32(SCREEN)+bytes.fromhex('303c')+be16(SCREEN_BYTES-1)
@@ -194,7 +208,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     if native_jab is not None:
-        for off in range(90,107):e.put(move_byte(0,DIAG+off))
+        for off in range(90,109):e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
@@ -257,7 +271,9 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.jump('pace')
             e.label('jump_combat_clear')
         e.if_byte(JSTATE,0,'jump_begin')
-        e.jump('pace')
+        if native_jab is not None:
+            aerial_jump('p1_aerial',JSTATE,P1AIR_USED,JVEL,ABUTTON,HELD_MASK,'jump_begin')
+        else:e.jump('pace')
         e.label('jump_begin')
         e.put(move_byte(1,JSTATE)+move_byte(0,JCLOCK))
         e.put(bytes.fromhex('5239')+be32(JCOUNT))
@@ -306,7 +322,9 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.jump('pace')
         e.label('p2_jump_attack_clear')
         e.if_byte(P2JSTATE,0,'p2_jump_begin')
-        e.jump('pace')
+        if native_jab is not None:
+            aerial_jump('p2_aerial',P2JSTATE,P2AIR_USED,P2JVEL,P2ABUTTON,P2MASK,'p2_jump_begin')
+        else:e.jump('pace')
         e.label('p2_jump_begin')
         e.put(move_byte(1,P2JSTATE)+move_byte(0,P2JCLOCK))
         e.put(bytes.fromhex('5239')+be32(P2JCOUNT))
@@ -583,6 +601,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.setword(0,P2JVEL)
         e.setword(0,P2HEIGHT)
         e.put(move_byte(0,P2JSTATE))
+        if native_jab is not None:e.put(move_byte(0,P2AIR_USED))
         e.label('p2_jump_tick_done')
     if jumping:
         e.if_byte(JSTATE,1,'jump_squat_tick')
@@ -627,6 +646,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.setword(0,JVEL)
         e.setword(0,JHEIGHT)
         e.put(move_byte(0,JSTATE))
+        if native_jab is not None:e.put(move_byte(0,P1AIR_USED))
     e.label('draw')
     if combat:
         if native_jab is not None:
