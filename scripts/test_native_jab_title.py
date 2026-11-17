@@ -28,12 +28,14 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--tool-bin',required=True,type=Path);p.add_argument('--boothush',required=True,type=Path)
     p.add_argument('--component',required=True,type=Path);p.add_argument('--output',required=True,type=Path)
+    p.add_argument('--air',type=Path,help='also qualify an opt-in aerial-control component')
     a=p.parse_args();tools=a.tool_bin.resolve(strict=True);exe=a.boothush.resolve(strict=True)
     movement=a.component.resolve(strict=True);out=a.output.resolve()
     if out==ROOT or ROOT in out.parents:raise ValueError('output must be outside repository')
     if sha(movement)!=COMPONENT_SHA:raise ValueError('unexpected movement component')
     gcc=tools/'m68k-unknown-elf-gcc.exe';nm=tools/'m68k-unknown-elf-nm.exe';objcopy=tools/'m68k-unknown-elf-objcopy.exe'
-    inputs=(*SOURCES,gcc,nm,objcopy,exe,movement);before={str(x):sha(x) for x in inputs}
+    air=a.air.resolve(strict=True) if a.air else None
+    inputs=(*SOURCES,gcc,nm,objcopy,exe,movement,*([air] if air else []));before={str(x):sha(x) for x in inputs}
     out.mkdir(parents=True,exist_ok=False);env=os.environ.copy();env['PATH']=str(tools)+os.pathsep+env.get('PATH','')
     commands=[]
     def invoke(cmd,log):
@@ -66,7 +68,8 @@ def main():
     code,symbols=component('a');twin,twin_symbols=component('b')
     if code!=twin or symbols!=twin_symbols:raise ValueError('component twins differ')
     image,size=build(jumping=True,combat=True,two_player=True,title=True,native_movement=movement.read_bytes(),
-                     native_p2=True,native_jab=(code,symbols['nstb_jab_begin'],symbols['nstb_jab_tick']))
+                     native_p2=True,native_jab=(code,symbols['nstb_jab_begin'],symbols['nstb_jab_tick']),
+                     native_air=air.read_bytes() if air else None)
     rom=out/'title-jab.rom';rom.write_bytes(image)
     scenarios={
         'p1_chain':[(3500000,3,1),(3900000,3,0),(4200000,3,1),(5800000,3,0),(6100000,3,1),(8500000,3,0)],
@@ -299,7 +302,8 @@ def main():
     for initial in (250,254):
         capped,_=build(jumping=True,combat=True,two_player=True,title=True,initial_damage=initial,
                        native_movement=movement.read_bytes(),native_p2=True,
-                       native_jab=(code,symbols['nstb_jab_begin'],symbols['nstb_jab_tick']))
+                       native_jab=(code,symbols['nstb_jab_begin'],symbols['nstb_jab_tick']),
+                       native_air=air.read_bytes() if air else None)
         cap_rom=out/('initial-%d.rom'%initial);cap_rom.write_bytes(capped)
         for name,events in attack_events.items():
             label=name+'-initial-%d'%initial
@@ -325,7 +329,8 @@ def main():
             damage_controls[label]={'rom_sha256':sha(path),'final_damage':expected,'hits':3}
     mutant_code,mutant_symbols=component('mutant',True)
     mutated,_=build(jumping=True,combat=True,two_player=True,title=True,native_movement=movement.read_bytes(),
-                    native_p2=True,native_jab=(mutant_code,mutant_symbols['nstb_jab_begin'],mutant_symbols['nstb_jab_tick']))
+                    native_p2=True,native_jab=(mutant_code,mutant_symbols['nstb_jab_begin'],mutant_symbols['nstb_jab_tick']),
+                    native_air=air.read_bytes() if air else None)
     mutant_rom=out/'mutant.rom';mutant_rom.write_bytes(mutated)
     # The separate reference calculation must reject the altered first-cut threshold.
     try:run('mutant',scenarios['p1_chain'],mutant_rom)

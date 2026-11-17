@@ -73,7 +73,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -93,7 +93,28 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         if (not isinstance(jab_code,bytes) or not jab_code or len(jab_code)>0x1e00 or
             len(native_movement)>0x200 or any(not isinstance(x,int) or x<0 or x>=len(jab_code) or x%2 for x in (jab_begin,jab_tick))):
             raise ValueError('native jab component outside its ROM slot')
+    if native_air is not None and (native_jab is None or not isinstance(native_air,bytes) or
+                                  not native_air or len(native_air)>0x1c00 or len(jab_code)>0x200):
+        raise ValueError('native air requires the native-jab title and nonoverlapping ROM slot')
     e=Asm()
+    def set_ground_velocity(prefix,value,address,state,air_used):
+        if native_air is not None:
+            e.if_byte(state,2,prefix+'_airborne')
+            e.if_byte(air_used,1,prefix+'_airborne')
+        e.setword(value,address)
+        if native_air is not None:e.label(prefix+'_airborne')
+    def native_move_call(prefix,state,air_used):
+        if native_air is not None:
+            e.if_byte(state,2,prefix+'_air')
+            # Aerial preparation retains horizontal momentum without applying
+            # directional influence; the shared source jump clock waits here.
+            e.if_byte(air_used,1,prefix+'_done')
+        e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe000))
+        if native_air is not None:
+            e.jump(prefix+'_done')
+            e.label(prefix+'_air')
+            e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe400))
+            e.label(prefix+'_done')
     def jab_begin_call(address,new_flag):
         e.put(bytes.fromhex('4879')+be32(address)+bytes.fromhex('4eb9')+be32(ROM_BASE+0xe200+jab_begin)
               +bytes.fromhex('4fef0004')+move_byte(1,new_flag))
@@ -259,7 +280,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(direction,HELD))
         if combat:
             e.put(move_byte(direction,FACING))
-        e.setword(velocity,VEL)
+        set_ground_velocity(label+'_velocity',velocity,VEL,JSTATE,P1AIR_USED)
         e.word('5279',ENTRY_COUNT)
         e.jump('pace')
     if jumping:
@@ -369,7 +390,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
                 e.if_byte(P2MASK,mask,'pace')
             e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(P2MASK))
             e.put(move_byte(direction,P2HELD)+move_byte(direction,P2FACING))
-            if native_p2:e.setword(0x0100 if direction==1 else 0xff00,P2VEL)
+            if native_p2:set_ground_velocity(label+'_velocity',0x0100 if direction==1 else 0xff00,P2VEL,P2JSTATE,P2AIR_USED)
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
         for label,direction in (('p2_right_up',1),('p2_left_up',2)):
@@ -384,7 +405,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.jump('pace')
             e.label(label+'_restore')
             e.put(move_byte(other,P2HELD)+move_byte(other,P2FACING))
-            if native_p2:e.setword(0x0100 if other==1 else 0xff00,P2VEL)
+            if native_p2:set_ground_velocity(label+'_velocity',0x0100 if other==1 else 0xff00,P2VEL,P2JSTATE,P2AIR_USED)
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
     for label,direction in (('right_up',1),('left_up',2)):
@@ -404,7 +425,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(move_byte(other,HELD))
         if combat:
             e.put(move_byte(other,FACING))
-        e.setword(0xff00 if other == 2 else 0x0100,VEL)
+        set_ground_velocity(label+'_velocity',0xff00 if other == 2 else 0x0100,VEL,JSTATE,P1AIR_USED)
         e.word('5279',ENTRY_COUNT)
         e.jump('pace')
     e.label('pace')
@@ -439,7 +460,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.put(bytes.fromhex('2f3c')+be32(direction & 0xffffffff))
             e.put(bytes.fromhex('4879')+be32(VEL))
             e.put(bytes.fromhex('4879')+be32(DIAG+86))
-            e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe000))
+            native_move_call(name,JSTATE,P1AIR_USED)
             e.put(bytes.fromhex('4fef000c'))
             e.jump('integrate')
     e.label('speed_right')
@@ -529,7 +550,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
                 e.put(bytes.fromhex('2f3c')+be32(direction & 0xffffffff))
                 e.put(bytes.fromhex('4879')+be32(P2VEL))
                 e.put(bytes.fromhex('4879')+be32(DIAG+86))
-                e.put(bytes.fromhex('4eb9')+be32(ROM_BASE+0xe000))
+                native_move_call(label,P2JSTATE,P2AIR_USED)
                 e.put(bytes.fromhex('4fef000c'))
                 e.jump('p2_native_integrate')
             e.label('p2_native_integrate')
@@ -859,6 +880,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     rom[ENTRY:ENTRY+len(code)]=code
     if native_movement is not None:rom[0xe000:0xe000+len(native_movement)]=native_movement
     if native_jab is not None:rom[0xe200:0xe200+len(jab_code)]=jab_code
+    if native_air is not None:rom[0xe400:0xe400+len(native_air)]=native_air
     return bytes(rom),len(code)
 
 def main():

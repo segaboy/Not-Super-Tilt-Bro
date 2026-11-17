@@ -72,18 +72,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('boothush', 'movement', 'jab', 'output'):
         parser.add_argument('--'+name, type=Path, required=True)
+    parser.add_argument('--air', type=Path, help='also qualify an opt-in aerial-control component')
     args = parser.parse_args()
     exe, movement, jab = (p.resolve(strict=True) for p in (args.boothush, args.movement, args.jab))
     if sha(movement) != MOVEMENT_SHA or sha(jab) != JAB_SHA:
         raise ValueError('unexpected retained native component')
     inputs = [exe, movement, jab, Path(__file__), *sorted((ROOT/'scripts').glob('build_mac_*.py')),
               ROOT/'scripts/test_mac_two_player.py', ROOT/'scripts/test_mac_combat.py']
+    air = args.air.resolve(strict=True) if args.air else None
+    if air is not None:inputs.append(air)
     before = {str(p): sha(p) for p in inputs}
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     image, used = build(jumping=True, combat=True, two_player=True, title=True,
                         native_movement=movement.read_bytes(), native_p2=True,
-                        native_jab=(jab.read_bytes(), 0, 22))
+                        native_jab=(jab.read_bytes(), 0, 22), native_air=air.read_bytes() if air else None)
     rom = out/'aerial-jump.rom'
     rom.write_bytes(image)
 

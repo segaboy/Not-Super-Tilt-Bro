@@ -125,3 +125,11 @@ hashes and input-dispatch differences are recorded in
 [aerial-jump evidence](aerial-jump-evidence.md). Its keyboard input rule,
 placeholder rendering, physics adapter and tests remain local game-informed
 port work, not ClasSICK implementation inputs.
+
+The optional native aerial-control component adapts the pinned Sinbad PAL air
+velocity, directional influence, friction and merge-to-target behavior. Source
+hashes, the local position adapter, preserved input/ground-movement differences
+and native-call qualification are recorded in
+[aerial-control evidence](aerial-control-evidence.md). It retains the same
+source/license boundary; its game-derived code and tests are not ClasSICK
+implementation inputs.

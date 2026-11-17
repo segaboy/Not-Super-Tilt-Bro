@@ -32,6 +32,11 @@ in the native-jab title. The jump resets momentum, retains altitude, supports
 short hops, and recharges on landing. Twenty dedicated BootHush cases and the
 34-case existing jab/title suite pass; the physics and art remain placeholders.
 
+A further opt-in [native aerial-control component](docs/aerial-control-evidence.md)
+adds source-derived air steering and gentle drift for both players. Direction
+changes preserve momentum, and landing restores ground movement. Existing ROM
+profiles remain byte-identical when the new component is omitted.
+
 [New ClasSICK cursor evidence](docs/cursor-composition-intake-20261116.md)
 records faster byte-row drawing and a reusable response-measurement method.
 It is available for the port's mouse-title work; integration remains pending.

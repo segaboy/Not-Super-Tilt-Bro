@@ -8,6 +8,13 @@ qualification. The 20-case aerial suite and existing 34-case combat/title suite
 pass on the pinned current BootHush candidate. See [aerial-jump evidence](aerial-jump-evidence.md).
 Full physics, collisions, input dispatch and a source-matched NES build remain open.
 
+Later 2026-11-17: a separate opt-in native C component adds source-derived PAL
+horizontal aerial influence and friction, momentum-preserving direction
+changes and ground movement restoration. Seven earlier profiles stay
+byte-identical. The new 14-case gameplay suite, 522-step component probe,
+six native-call checks and both existing combat/jump suites pass; see
+[aerial-control evidence](aerial-control-evidence.md).
+
 2026-11-14: A second independently controlled figure now moves, jumps and performs a limited jab in the opt-in prototype. Both figures can trade prototype hits or evade while airborne. It is not a complete match; see [two-character evidence](two-character-evidence.md). Following the owner's direction, a further opt-in build adds a mouse-driven title/start and keyboard control during play. Fast modeled motion can be missed; see [mouse-title evidence](mouse-title-evidence.md).
 
 Later 2026-11-14: an opt-in source-informed first-jab experiment adds an original stationary training target, visible active pose and a bounded two-point damage counter. Movement, jump, both attack directions, misses and repeated hits run in BootHush. This is a diagnostic combat slice, not a source-matched collision engine or playable match. [Evidence](jab-training-evidence.md).
