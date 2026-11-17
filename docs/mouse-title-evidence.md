@@ -1,6 +1,6 @@
 # Mouse title and keyboard-play experiment — 2026-11-14
 
-Latest input increment: [finite phase lookup and mask trace](#finite-phase-lookup-and-mask-trace-2026-11-16).
+Latest input qualification: [failed-drain recovery replay](#failed-drain-recovery-replay---2026-11-17).
 
 ## Question, origin and scope
 
@@ -364,3 +364,76 @@ to compare full endpoints and untraced controls as well as average sampling
 cost: a faster decoder alone does not guarantee correct movement. The receipt
 owns the detailed measurements; no game-derived implementation was sent to
 ClasSICK, and neither project's result establishes physical behavior.
+
+## Failed-drain recovery replay - 2026-11-17
+
+The new original test, `scripts/test_title_recovery.py`, closes a checkpoint gap
+in the earlier timeout/retry endpoint checks. It builds the existing emitter
+title unchanged from port base `5487acb132f6c50eb5e6029ff086c3fd251da3a0`.
+ROM SHA-256 remains
+`c693dcfebf1c9c4b1048abc50503f3462985a926dedc57fe6c5d1da25bfb7d72`
+(65,536 bytes, emitter end 36,502). No production ROM code changed.
+
+Seven bounded, headless BootHush runs cover a recording, independent repeat,
+mouse replay, endpoint without capture/witness observation, two input controls
+and one defective test-only ROM. Each observed run captures 13 requested
+cycle boundaries and the complete 86-byte diagnostic block. Input is scheduled
+in guest cycles; no visible window, host input injection or human test is used.
+
+| Requested cycle | Required observation in the accepted scenario |
+| ---: | --- |
+| 1,500,000 | Title ready after a modeled 16-pixel move inside Start |
+| 2,400,000; 2,800,000; 3,500,000 | Failed drain, timeout count 1; held click cannot retry |
+| 3,900,000 | Released click rearms; title remains failed until fresh press |
+| 4,800,000; 5,500,000; 6,500,000 | Gameplay ready; title-held key does not move P1; P2 unchanged |
+| 7,500,000 | Fresh P1 key is held and moves P1 |
+| 8,500,000; 9,500,000 | Release clears P1 held state; P2 remains unchanged |
+
+The first keyboard transfer stalls once at modeled cycle 2,000,894. The test
+queues its title-time key at 3,200,000, after failure, so the failed transfer
+cannot consume that key and conceal a missing retry drain. A fresh click at
+4,000,000 drains it before gameplay. Successful handoff resets the timeout
+counter, so a final counter alone would miss this failure. The key stays held
+until 6,000,000; only a fresh make at 7,000,000 moves P1. Final P1 position is
+37,088 in the prototype's fixed-point units; P2 stays at 43,008.
+
+Recording, independent repeat and replay have identical capture cycles,
+complete diagnostic snapshots, all captured PBM bytes, final PBM bytes and
+keyboard witness bytes. All four keys are accepted and delivered in order;
+there are no pending, rejected or dropped scheduled keys, missing captures or
+pending modeled mouse events. The observer-free endpoint matches status,
+cycles, PC, VBL, mouse totals, fault result, memory and final pixels. Original
+pixel oracles also check stable title/gameplay samples; transitional state 4
+frames are compared across runs without claiming an atomic redraw.
+
+Omitting the fresh mouse press keeps the title failed. Omitting the fresh key
+make keeps gameplay stationary. A test-only mutation that leaves the accepted
+click armed causes an unintended held-button retry; the checkpoint oracle
+rejects it. The production ROM hash is checked again after testing.
+
+BootHush source identity supplied for this executable is `238f7e7`;
+executable SHA-256:
+`9dc2f28425bafd10114cfde9ab5c439d61234873854cfa1c211cdcfb26bda82d`.
+The final report includes exact commands, source hashes and each full guest
+result at `out/title-recovery-20261117-b/report.json`.
+Recorded mouse trace SHA-256 is
+`1c85a29bd2d2b60f66361cfe976f1f6b1e758cbd70a03e13ac96a3a0e847711d`;
+its captured frame-series SHA-256 is
+`9f8a3171c9790bd338b7b88e955e5db516a89fa060d6b97efa313e09a9fc27f7`.
+Earlier development probes and the first passing test receipt remain in
+neighboring ignored output directories.
+
+The same executable also passes all 22 existing title scenarios, during-motion
+and handoff replay (`out/title-recovery-baseline-20261117-a/summary.json`),
+plus all 160 phase/boundary cases and the wrong-sign mutation control
+(`out/title-recovery-axis-20261117-a/report.json`). Reproduce from the
+repository root with a fresh output directory:
+
+```powershell
+python -B scripts/test_title_recovery.py --boothush C:/Repos/boothush/out/pointer-testing-20261117/boothush.exe --output out/NEW-RECOVERY
+```
+
+This is modeled recovery evidence for the existing emitter title. It does not
+qualify native-jab ROM recovery, physical input, human pointer feel, hardware,
+a complete playable game or the paired ClasSICK release. Only the independent
+measurement method is reusable across projects; game-derived code stays here.
