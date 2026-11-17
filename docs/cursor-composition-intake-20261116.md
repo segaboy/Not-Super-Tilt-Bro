@@ -19,3 +19,16 @@ recovery-jump demonstration is retained unchanged in the refreshed paired
 review archive; no new gameplay behavior or complete game is claimed.
 No upstream game implementation was transferred into ClasSICK, and no
 proprietary source or asset entered this intake.
+
+## 2026-11-17 follow-up: human response still fails
+
+The [dated ClasSICK human receipt](https://github.com/segaboy/ClasSICK-0.97/blob/197416cb8b8f47392cb6f63c17b8e8cd16b39d11/docs/development/guided-human-qualification-20261116.md)
+records new owner input that exposes omissions despite an equal final replay
+frame. The earlier scoped traces remain valid; they did not cover this failure.
+BootHush's new optional raw/guest/host pointer log can distinguish displacement
+from delivery delay in subsequent human tests. The receipt owns the exact
+identities, diagnostic link and limits. Both references are local immutable
+commits; remote availability is not asserted. The port's title-screen input
+can reuse this investigation method, but no port code, game behavior or
+hardware claim changed. Do not use matching final pixels as proof of loss-free
+intermediate motion or acceptable human response.
