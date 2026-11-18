@@ -2,6 +2,13 @@
 
 Research date: 2026-11-13. This is a preliminary source review, not a complete audit or a completed port.
 
+2026-11-18: deterministic title recovery now covers both players in the existing
+native-jab and optional air profiles, including six stale action keys, complete
+109-byte checkpoints, replay and two mutation controls. All six profile/player
+configurations pass (46 bounded BootHush runs), with unchanged ROM bytes. See
+[native title recovery](native-title-recovery-evidence.md); this does not qualify
+human pointer response or new aerial/combat behavior.
+
 2026-11-17: the native-jab title adds a source-derived aerial jump for each
 player, with landing recharge, short-hop handling and simultaneous two-player
 qualification. The 20-case aerial suite and existing 34-case combat/title suite

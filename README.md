@@ -37,6 +37,13 @@ adds source-derived air steering and gentle drift for both players. Direction
 changes preserve momentum, and landing restores ground movement. Existing ROM
 profiles remain byte-identical when the new component is omitted.
 
+[Native title recovery](docs/native-title-recovery-evidence.md) now qualifies
+the existing native-jab and aerial-control profiles after an injected keyboard
+timeout. Both players' title-time direction, jump and attack inputs are drained
+before fresh gameplay input, with checkpoint replay and defect controls. All
+three title profiles retain their prior ROM bytes; human mouse response remains
+unqualified.
+
 [New ClasSICK cursor evidence](docs/cursor-composition-intake-20261116.md)
 records faster byte-row drawing and a reusable response-measurement method.
 It is available for the port's mouse-title work; integration remains pending.
