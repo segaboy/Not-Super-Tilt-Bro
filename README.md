@@ -37,6 +37,11 @@ adds source-derived air steering and gentle drift for both players. Direction
 changes preserve momentum, and landing restores ground movement. Existing ROM
 profiles remain byte-identical when the new component is omitted.
 
+In the [fast-fall title ROM](docs/fast-fall-evidence.md), either player can
+release Down in midair to descend five pixels per gameplay tick. In the matched
+BootHush runs, this brought the fighter to the floor 12 VBLs earlier. An unused
+aerial jump can interrupt the descent.
+
 [Native title recovery](docs/native-title-recovery-evidence.md) now qualifies
 the existing native-jab and aerial-control profiles after an injected keyboard
 timeout. Both players' title-time direction, jump and attack inputs are drained

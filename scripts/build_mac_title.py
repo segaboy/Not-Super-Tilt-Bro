@@ -174,8 +174,23 @@ def emit_title(e,wait_shift):
 
 def main():
     from build_mac_movement import build
-    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--output',required=True,type=Path);a=p.parse_args()
-    data,size=build(jumping=True,combat=True,two_player=True,title=True)
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--output',required=True,type=Path)
+    p.add_argument('--fast-fall',nargs=3,type=Path,metavar=('MOVEMENT','JAB','AIR'),
+                   help='build the fast-fall title using the qualified native component binaries')
+    a=p.parse_args()
+    options={}
+    if a.fast_fall:
+        movement,jab,air=(path.read_bytes() for path in a.fast_fall)
+        # The native jab entry offsets are specific to the qualified component.
+        expected=('a65c5fa382bee316b916cd6c6af52c4a2591496aa762c346e784e7a8bca7d25c',
+                  '30e0e1a84928b05fcf387ce00a8dd10881ebc8c6692a104a925f4a1f68153d6a',
+                  'd7bfcfc9be27610ae74b428589941e462da74f747fa660ad4573964b49b9ad4e')
+        if tuple(hashlib.sha256(blob).hexdigest() for blob in (movement,jab,air))!=expected:
+            p.error('unexpected native component identity for --fast-fall')
+        options=dict(native_movement=movement,native_p2=True,native_jab=(jab,0,22),
+                     native_air=air,fast_fall=True)
+    data,size=build(jumping=True,combat=True,two_player=True,title=True,**options)
     a.output.parent.mkdir(parents=True,exist_ok=True)
     with a.output.open('xb') as stream:stream.write(data)
     print(f'sha256={hashlib.sha256(data).hexdigest()} bytes={len(data)} used_through={0x104+size}')

@@ -26,6 +26,8 @@ P2VEL = DIAG + 88  # experimental C movement velocity; separate from title scrat
 P1JAB, P2JAB, P1JAB_NEW, P2JAB_NEW, JAB_PREVIOUS = [DIAG+x for x in (90,94,98,99,100)]
 P1SIDE, P1SIDE_CLOCK, P2SIDE, P2SIDE_CLOCK, P1SIDE_NEW, P2SIDE_NEW = [DIAG+x for x in (101,102,103,104,105,106)]
 P1AIR_USED, P2AIR_USED = DIAG+107, DIAG+108
+P1DOWN, P2DOWN, P1FAST, P2FAST = [DIAG+x for x in range(109,113)]
+FAST_FALL_VELOCITY = -0x500  # PAL Sinbad, translated to local positive-up coordinates
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
          0x3ffc,0x3ffc,0x03c0,0x07e0,0x07e0,0x0e70,0x0e70,0x1c38,
@@ -73,7 +75,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None,fast_fall=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -97,6 +99,44 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
                                   not native_air or len(native_air)>0x1c00 or len(jab_code)>0x200):
         raise ValueError('native air requires the native-jab title and nonoverlapping ROM slot')
     e=Asm()
+    if fast_fall and native_air is None:
+        raise ValueError('fast fall requires the native-air title')
+
+    def fall_input(prefix, down, active, state, directions, attack, jump, velocity):
+        e.label(prefix+'_down')
+        e.put(move_byte(1,down))
+        e.jump('pace')
+        e.label(prefix+'_up')
+        e.if_byte(down,0,'pace')
+        e.put(move_byte(0,down))
+        e.if_byte(state,2,prefix+'_in_air')
+        e.jump('pace')
+        e.label(prefix+'_in_air')
+        e.if_byte(directions,0,prefix+'_neutral')
+        e.jump('pace')
+        e.label(prefix+'_neutral')
+        e.if_byte(attack,1,'pace')
+        e.if_byte(jump,1,'pace')
+        e.setword(FAST_FALL_VELOCITY,velocity)
+        e.put(move_byte(1,active))
+        e.jump('pace')
+
+    def fall_limit(prefix,active):
+        # D0 holds vertical velocity after the local gravity step.
+        if fast_fall:
+            e.if_byte(active,1,prefix+'fast_limit')
+        e.cmpw(0xfe00)
+        e.cond(0x6c,prefix+'jump_cap_fall')
+        e.jump(prefix+'jump_save_velocity')
+        e.label(prefix+'jump_cap_fall')
+        e.put(bytes.fromhex('303cfe00'))
+        if fast_fall:
+            e.jump(prefix+'jump_save_velocity')
+            e.label(prefix+'fast_limit')
+            e.cmpw(FAST_FALL_VELOCITY)
+            e.cond(0x6d,prefix+'jump_save_velocity') # BGE
+            e.put(bytes.fromhex('303c')+be16(FAST_FALL_VELOCITY & 0xffff))
+        e.label(prefix+'jump_save_velocity')
     def set_ground_velocity(prefix,value,address,state,air_used):
         if native_air is not None:
             e.if_byte(state,2,prefix+'_airborne')
@@ -229,7 +269,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     if native_jab is not None:
-        for off in range(90,109):e.put(move_byte(0,DIAG+off))
+        for off in range(90,113 if fast_fall else 109):e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
@@ -268,7 +308,13 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         for code,target in ((9,'p2_right'),(11,'p2_left'),(0x89,'p2_right_up'),(0x8b,'p2_left_up'),
                             (13,'p2_attack_down'),(0x8d,'p2_attack_up'),(15,'p2_jump_down'),(0x8f,'p2_jump_up')):
             e.if_d0(code,target)
+    if fast_fall:
+        for code,target in ((0x11,'fall1_down'),(0x91,'fall1_up'),(0x13,'fall2_down'),(0x93,'fall2_up')):
+            e.if_d0(code,target)
     e.jump('pace')
+    if fast_fall:
+        fall_input('fall1',P1DOWN,P1FAST,JSTATE,HELD_MASK,ABUTTON,JBUTTON,JVEL)
+        fall_input('fall2',P2DOWN,P2FAST,P2JSTATE,P2MASK,P2ABUTTON,P2JBUTTON,P2JVEL)
     for label,direction,velocity in (('right',1,0x0100),('left',2,0xff00)):
         e.label(label)
         e.put(bytes.fromhex('13c0')+be32(REPLY))
@@ -293,9 +339,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.label('jump_combat_clear')
         e.if_byte(JSTATE,0,'jump_begin')
         if native_jab is not None:
+            if fast_fall:e.if_byte(P1DOWN,1,'pace')
             aerial_jump('p1_aerial',JSTATE,P1AIR_USED,JVEL,ABUTTON,HELD_MASK,'jump_begin')
         else:e.jump('pace')
         e.label('jump_begin')
+        if fast_fall:e.put(move_byte(0,P1FAST))
         e.put(move_byte(1,JSTATE)+move_byte(0,JCLOCK))
         e.put(bytes.fromhex('5239')+be32(JCOUNT))
         e.jump('pace')
@@ -344,9 +392,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('p2_jump_attack_clear')
         e.if_byte(P2JSTATE,0,'p2_jump_begin')
         if native_jab is not None:
+            if fast_fall:e.if_byte(P2DOWN,1,'pace')
             aerial_jump('p2_aerial',P2JSTATE,P2AIR_USED,P2JVEL,P2ABUTTON,P2MASK,'p2_jump_begin')
         else:e.jump('pace')
         e.label('p2_jump_begin')
+        if fast_fall:e.put(move_byte(0,P2FAST))
         e.put(move_byte(1,P2JSTATE)+move_byte(0,P2JCLOCK))
         e.put(bytes.fromhex('5239')+be32(P2JCOUNT))
         e.jump('pace')
@@ -597,12 +647,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(bytes.fromhex('5239')+be32(P2JCLOCK))
         e.word('3039',P2JVEL)
         e.put(bytes.fromhex('04400060'))
-        e.cmpw(0xfe00)
-        e.cond(0x6c,'p2_jump_cap_fall')
-        e.jump('p2_jump_save_velocity')
-        e.label('p2_jump_cap_fall')
-        e.put(bytes.fromhex('303cfe00'))
-        e.label('p2_jump_save_velocity')
+        fall_limit('p2_',P2FAST)
         e.if_byte(P2JCLOCK,8,'p2_jump_check_short')
         e.jump('p2_jump_store_velocity')
         e.label('p2_jump_check_short')
@@ -619,6 +664,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.word('33c0',P2HEIGHT)
         e.jump('p2_jump_tick_done')
         e.label('p2_jump_land')
+        if fast_fall:e.put(move_byte(0,P2FAST))
         e.setword(0,P2JVEL)
         e.setword(0,P2HEIGHT)
         e.put(move_byte(0,P2JSTATE))
@@ -642,12 +688,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.put(bytes.fromhex('5239')+be32(JCLOCK))
         e.word('3039',JVEL)
         e.put(bytes.fromhex('04400060'))
-        e.cmpw(0xfe00)
-        e.cond(0x6c,'jump_cap_fall') # BLT
-        e.jump('jump_save_velocity')
-        e.label('jump_cap_fall')
-        e.put(bytes.fromhex('303cfe00'))
-        e.label('jump_save_velocity')
+        fall_limit('',P1FAST)
         e.if_byte(JCLOCK,8,'jump_check_short_hop')
         e.jump('jump_store_velocity')
         e.label('jump_check_short_hop')
@@ -664,6 +705,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.word('33c0',JHEIGHT)
         e.jump('draw')
         e.label('jump_land')
+        if fast_fall:e.put(move_byte(0,P1FAST))
         e.setword(0,JVEL)
         e.setword(0,JHEIGHT)
         e.put(move_byte(0,JSTATE))

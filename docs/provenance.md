@@ -133,3 +133,9 @@ and native-call qualification are recorded in
 [aerial-control evidence](aerial-control-evidence.md). It retains the same
 source/license boundary; its game-derived code and tests are not ClasSICK
 implementation inputs.
+
+The opt-in fast-fall title adapts Sinbad's PAL downward speed, the Down-alone
+release condition and the aerial-jump reset from the same pinned source.
+The keyboard adapter, jump integration and graphics remain local port work.
+The [fast-fall receipt](fast-fall-evidence.md) lists the source files,
+qualification ROM, emulator and reproduction commands.

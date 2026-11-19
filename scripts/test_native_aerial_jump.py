@@ -23,11 +23,14 @@ def sha(path):
 
 def player(memory, index):
     offset = 24 if index == 0 else 50
-    return {'state': memory[offset], 'clock': memory[offset+1],
+    result = {'state': memory[offset], 'clock': memory[offset+1],
             'velocity': int.from_bytes(memory[offset+2:offset+4], 'big', signed=True),
             'height': int.from_bytes(memory[offset+4:offset+6], 'big'),
             'button': memory[offset+6], 'jumps': memory[offset+7],
             'used': memory[107+index]}
+    if len(memory) == 113:
+        result.update(down=memory[109+index], fast=memory[111+index])
+    return result
 
 
 def tick(old, phase):
@@ -41,12 +44,15 @@ def tick(old, phase):
             new['state'], new['velocity'] = 2, 0x480
     elif old['state'] == 2:
         new['clock'] = (old['clock']+1) & 255
-        new['velocity'] = max(old['velocity']-0x60, -0x200)
+        terminal = -1280 if old.get('fast') else -512
+        new['velocity'] = max(old['velocity']-0x60, terminal)
         if new['clock'] == 8 and not old['button']:
             new['velocity'] = 0x102
         new['height'] = old['height']+new['velocity']
         if new['height'] <= 0:
             new.update(state=0, velocity=0, height=0, used=0)
+            if 'fast' in new:
+                new['fast'] = 0
     return new
 
 
@@ -73,6 +79,7 @@ def main():
     for name in ('boothush', 'movement', 'jab', 'output'):
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--air', type=Path, help='also qualify an opt-in aerial-control component')
+    parser.add_argument('--fast-fall', action='store_true', help='also exercise Down releases for both players')
     args = parser.parse_args()
     exe, movement, jab = (p.resolve(strict=True) for p in (args.boothush, args.movement, args.jab))
     if sha(movement) != MOVEMENT_SHA or sha(jab) != JAB_SHA:
@@ -86,7 +93,8 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     image, used = build(jumping=True, combat=True, two_player=True, title=True,
                         native_movement=movement.read_bytes(), native_p2=True,
-                        native_jab=(jab.read_bytes(), 0, 22), native_air=air.read_bytes() if air else None)
+                        native_jab=(jab.read_bytes(), 0, 22), native_air=air.read_bytes() if air else None,
+                        fast_fall=args.fast_fall)
     rom = out/'aerial-jump.rom'
     rom.write_bytes(image)
 
@@ -94,7 +102,7 @@ def main():
         frames, witness = out/(name+'.pbmseq'), out/(name+'.keyboard')
         cmd = [str(exe), '--machine', 'mac128k', '--rom', str(selected_rom), '--cycles', str(stop),
                '--timeout-ms', '20000', '--mouse-button', '2000000:1', '--mouse-button', '2400000:0',
-               '--capture-series', str(frames), '--capture-memory', '0xb00:109',
+               '--capture-series', str(frames), '--capture-memory', f'0xb00:{113 if args.fast_fall else 109}',
                '--keyboard-witness', str(witness)]
         for point in points:
             cmd += ['--capture-vbl', str(point)]
@@ -120,7 +128,7 @@ def main():
         blob, observations = frames.read_bytes(), []
         for sample in series['samples']:
             memory = bytes.fromhex(sample['memory']['bytes'])
-            if len(memory) != 109 or not sample['processed'] or not sample['image_available']:
+            if len(memory) != (113 if args.fast_fall else 109) or not sample['processed'] or not sample['image_available']:
                 raise ValueError(name+': missing state')
             state = decode({'memory': {'bytes': memory[:58].hex()}})
             pixels(blob[sample['offset']:sample['offset']+sample['length']], state)
@@ -189,6 +197,62 @@ def main():
     if repeat['observations'] != cases['both_double']['observations'] or repeat['frames_sha256'] != cases['both_double']['frames_sha256']:
         raise ValueError('identical schedule was nondeterministic')
     cases['both_repeat'] = repeat
+
+    if args.fast_fall:
+        for index, down, jump, right, attack in ((0,8,2,0,3), (1,9,7,4,6)):
+            leap = [(3500000,jump,1), (4900000,jump,0)]
+            press = (5150000,down,1)
+            release = (6000000,down,0)
+            scenarios = {
+                'release': leap+[press,release],
+                'rising': leap+[press,(5500000,down,0)],
+                'descending': leap+[press,(6750000,down,0)],
+                'held': leap+[press],
+                'direction': leap+[press,(5500000,right,1),release],
+                'attack': leap+[press,(5500000,attack,1),release],
+                'jump_held': [leap[0],press,release],
+                'grounded': [press,release],
+                'jump_cancel': leap+[press,release,(6300000,jump,1)],
+            }
+            landings = {}
+            for kind,events in scenarios.items():
+                name = f'p{index+1}_fall_{kind}'
+                result = run(name,events)
+                rows = [(s['vbl'],s['players'][index]) for s in result['observations']]
+                active = [s for _,s in rows if s['fast']]
+                if bool(active) != (kind in ('release','rising','descending','jump_cancel')):
+                    raise ValueError(name+': wrong fast-fall activation')
+                if kind != 'grounded' and not any(s['state']==2 for _,s in rows):
+                    raise ValueError(name+': missing airborne control')
+                if active and not all(s['velocity']==-1280 and s['down']==0 and s['state']==2 for s in active):
+                    raise ValueError(name+': incorrect descent')
+                if kind in ('rising','descending'):
+                    previous = next(old for (_,old),(_,new) in zip(rows,rows[1:])
+                                    if not old['fast'] and new['fast'])
+                    if previous['velocity'] * (1 if kind == 'rising' else -1) <= 0:
+                        raise ValueError(name+': wrong vertical direction before release')
+                if not any(s['down']==1 for _,s in rows):
+                    raise ValueError(name+': down press never observed')
+                if any(s['players'][1-index]['fast'] or s['players'][1-index]['down'] for s in result['observations']):
+                    raise ValueError(name+': affected opponent')
+                if kind in ('release','held'):
+                    landings[kind] = next(frame for frame,s in rows if s['jumps']==1 and s['state']==0)
+                if kind == 'jump_cancel':
+                    validate_jump_case(name,result,index,2)
+                    if any(s['fast'] for _,s in rows if s['jumps']==2):
+                        raise ValueError(name+': aerial jump failed to reset terminal speed')
+                if rows[-1][1]['fast']:
+                    raise ValueError(name+': landing failed to reset fast fall')
+                cases[name] = result
+            if landings['release'] >= landings['held']:
+                raise ValueError('fast fall did not land sooner than its held-key control')
+        events = [(3500000,2,1),(3700000,7,1),(4900000,2,0),(5100000,7,0),
+                  (5350000,8,1),(5550000,9,1),(6100000,8,0)]
+        name = 'two_player_fall'
+        cases[name] = run(name,events)
+        if not any(p1['state']==0 and p1['jumps']==1 and p2['height']>0 and p2['down']==1
+                   for p1,p2 in (s['players'] for s in cases[name]['observations'])):
+            raise ValueError('two-player release/hold difference missing')
 
     controls = {}
     for index, address, velocity in ((0, P1AIR_USED, JVEL), (1, P2AIR_USED, P2JVEL)):
