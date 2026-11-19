@@ -81,6 +81,7 @@ def main():
         parser.add_argument('--'+name, type=Path, required=True)
     parser.add_argument('--air', type=Path, help='also qualify an opt-in aerial-control component')
     parser.add_argument('--fast-fall', action='store_true', help='also exercise Down releases for both players')
+    parser.add_argument('--side-dash', action='store_true', help='run the jumps suite on the side-dash title')
     args = parser.parse_args()
     exe, movement, jab = (p.resolve(strict=True) for p in (args.boothush, args.movement, args.jab))
     supported_ground = (MOVEMENT_SHA, GROUND_CONTROL_SHA) if args.fast_fall else (MOVEMENT_SHA,)
@@ -96,7 +97,7 @@ def main():
     image, used = build(jumping=True, combat=True, two_player=True, title=True,
                         native_movement=movement.read_bytes(), native_p2=True,
                         native_jab=(jab.read_bytes(), 0, 22), native_air=air.read_bytes() if air else None,
-                        fast_fall=args.fast_fall)
+                        fast_fall=args.fast_fall,side_dash=args.side_dash)
     rom = out/'aerial-jump.rom'
     rom.write_bytes(image)
 

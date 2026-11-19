@@ -75,7 +75,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None,fast_fall=False):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None,fast_fall=False,side_dash=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -101,6 +101,43 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e=Asm()
     if fast_fall and native_air is None:
         raise ValueError('fast fall requires the native-air title')
+    if side_dash and not fast_fall:
+        raise ValueError('side dash requires the fast-fall title')
+
+    def start_side_speed(prefix,velocity,facing):
+        if not side_dash:
+            e.setword(0,velocity)
+            return
+        e.if_byte(facing,2,prefix+'_left')
+        e.setword(256,velocity)
+        e.jump(prefix+'_ready')
+        e.label(prefix+'_left')
+        e.setword(-256,velocity)
+        e.label(prefix+'_ready')
+
+    def side_motion(prefix,side,new_flag,clock,velocity,integrate,neutral):
+        # Launch and phase-transition ticks retain momentum. The default
+        # recovery tick reuses the qualified native ground friction step.
+        e.if_byte(side,0,prefix+'_stationary')
+        e.if_byte(new_flag,1,integrate)
+        e.if_byte(clock,1,integrate)
+        e.if_byte(side,3,neutral)
+        e.word('3039',velocity)
+        e.cmpw(0)
+        e.cond(0x66,integrate) # zero velocity stays stopped
+        e.cond(0x6c,prefix+'_negative')
+        for name,op,target,within in (('positive','06400040',682,0x6e),
+                                      ('negative','04400040',-682,0x6d)):
+            e.label(prefix+'_'+name)
+            e.put(bytes.fromhex(op))
+            e.cmpw(target)
+            e.cond(within,prefix+'_store')
+            e.put(bytes.fromhex('303c')+be16(target & 0xffff))
+            if name=='positive':e.jump(prefix+'_store')
+        e.label(prefix+'_store')
+        e.word('33c0',velocity)
+        e.jump(integrate)
+        e.label(prefix+'_stationary')
 
     def fall_input(prefix, down, active, state, directions, attack, jump, velocity):
         e.label(prefix+'_down')
@@ -143,6 +180,14 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.if_byte(air_used,1,prefix+'_airborne')
         e.setword(value,address)
         if native_air is not None:e.label(prefix+'_airborne')
+    def direction_change(label,direction,velocity,address,state,used,facing,side):
+        if side_dash:
+            e.if_byte(side,0,label+'_face')
+            e.jump(label+'_held')
+            e.label(label+'_face')
+        if combat:e.put(move_byte(direction,facing))
+        set_ground_velocity(label+'_velocity',velocity,address,state,used)
+        if side_dash:e.label(label+'_held')
     def native_move_call(prefix,state,air_used):
         if native_air is not None:
             e.if_byte(state,2,prefix+'_air')
@@ -324,9 +369,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.if_byte(HELD_MASK,state,'pace')
         e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(HELD_MASK)) # BSET
         e.put(move_byte(direction,HELD))
-        if combat:
-            e.put(move_byte(direction,FACING))
-        set_ground_velocity(label+'_velocity',velocity,VEL,JSTATE,P1AIR_USED)
+        direction_change(label,direction,velocity,VEL,JSTATE,P1AIR_USED,FACING,P1SIDE)
         e.word('5279',ENTRY_COUNT)
         e.jump('pace')
     if jumping:
@@ -370,7 +413,8 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.jump('pace')
             e.label('p1_side_begin')
             e.put(move_byte(1,P1SIDE)+move_byte(12,P1SIDE_CLOCK)+move_byte(1,P1SIDE_NEW)+move_byte(1,ACLOCK))
-            e.setword(0,VEL);e.put(bytes.fromhex('5239')+be32(ATTACKS));e.jump('pace')
+            start_side_speed('p1_start_side',VEL,FACING)
+            e.put(bytes.fromhex('5239')+be32(ATTACKS));e.jump('pace')
             e.label('p1_jab_neutral_direction')
             e.if_byte(JBUTTON,0,'p1_jab_neutral_jump')
             e.jump('pace')
@@ -422,7 +466,8 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.jump('pace')
             e.label('p2_side_begin')
             e.put(move_byte(1,P2SIDE)+move_byte(12,P2SIDE_CLOCK)+move_byte(1,P2SIDE_NEW)+move_byte(1,P2ACLOCK))
-            e.setword(0,P2VEL);e.put(bytes.fromhex('5239')+be32(P2ATTACKS));e.jump('pace')
+            start_side_speed('p2_start_side',P2VEL,P2FACING)
+            e.put(bytes.fromhex('5239')+be32(P2ATTACKS));e.jump('pace')
             e.label('p2_jab_neutral_direction')
             e.if_byte(P2JBUTTON,0,'p2_jab_neutral_jump')
             e.jump('pace')
@@ -439,8 +484,9 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             for mask in ((1,3) if direction==1 else (2,3)):
                 e.if_byte(P2MASK,mask,'pace')
             e.put(bytes.fromhex('08f9')+be16(direction-1)+be32(P2MASK))
-            e.put(move_byte(direction,P2HELD)+move_byte(direction,P2FACING))
-            if native_p2:set_ground_velocity(label+'_velocity',0x0100 if direction==1 else 0xff00,P2VEL,P2JSTATE,P2AIR_USED)
+            e.put(move_byte(direction,P2HELD))
+            if native_p2:direction_change(label,direction,256 if direction==1 else -256,P2VEL,P2JSTATE,P2AIR_USED,P2FACING,P2SIDE)
+            else:e.put(move_byte(direction,P2FACING))
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
         for label,direction in (('p2_right_up',1),('p2_left_up',2)):
@@ -454,8 +500,9 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.put(move_byte(0,P2HELD))
             e.jump('pace')
             e.label(label+'_restore')
-            e.put(move_byte(other,P2HELD)+move_byte(other,P2FACING))
-            if native_p2:set_ground_velocity(label+'_velocity',0x0100 if other==1 else 0xff00,P2VEL,P2JSTATE,P2AIR_USED)
+            e.put(move_byte(other,P2HELD))
+            if native_p2:direction_change(label,other,256 if other==1 else -256,P2VEL,P2JSTATE,P2AIR_USED,P2FACING,P2SIDE)
+            else:e.put(move_byte(other,P2FACING))
             e.put(bytes.fromhex('5239')+be32(P2CHANGES))
             e.jump('pace')
     for label,direction in (('right_up',1),('left_up',2)):
@@ -473,9 +520,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.jump('pace')
         e.label(label+'_restore')
         e.put(move_byte(other,HELD))
-        if combat:
-            e.put(move_byte(other,FACING))
-        set_ground_velocity(label+'_velocity',0xff00 if other == 2 else 0x0100,VEL,JSTATE,P1AIR_USED)
+        direction_change(label,other,-256 if other==2 else 256,VEL,JSTATE,P1AIR_USED,FACING,P1SIDE)
         e.word('5279',ENTRY_COUNT)
         e.jump('pace')
     e.label('pace')
@@ -489,11 +534,16 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
                       P2MASK,P2JBUTTON,P2JSTATE,P2JCLOCK,P2JCOUNT)
     if combat:
         e.if_byte(ACLOCK,0,'attack_movement_clear')
+        if side_dash:side_motion('p1_dash',P1SIDE,P1SIDE_NEW,P1SIDE_CLOCK,VEL,'integrate','native_neutral')
         # Direction events can set velocity while a jab is active. Keep the
         # prototype's grounded attack stationary until its clock ends.
         e.setword(0,VEL)
         e.jump('integrate')
         e.label('attack_movement_clear')
+        if side_dash:
+            e.if_byte(HELD,0,'p1_heading_ready')
+            e.put(bytes.fromhex('13f9')+be32(HELD)+be32(FACING))
+            e.label('p1_heading_ready')
     e.if_byte(HELD,1,'native_right' if native_movement is not None else 'speed_right')
     e.if_byte(HELD,2,'native_left' if native_movement is not None else 'speed_left')
     e.jump('native_neutral' if native_movement is not None else 'friction')
@@ -587,9 +637,14 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.word('33c0',POS)
     if two_player:
         e.if_byte(P2ACLOCK,0,'p2_movement_clear')
+        if side_dash:side_motion('p2_dash',P2SIDE,P2SIDE_NEW,P2SIDE_CLOCK,P2VEL,'p2_native_integrate','p2_native_neutral')
         if native_p2:e.setword(0,P2VEL)
         e.jump('p2_tick_done')
         e.label('p2_movement_clear')
+        if side_dash:
+            e.if_byte(P2HELD,0,'p2_heading_ready')
+            e.put(bytes.fromhex('13f9')+be32(P2HELD)+be32(P2FACING))
+            e.label('p2_heading_ready')
         if native_p2:
             e.if_byte(P2HELD,1,'p2_native_right')
             e.if_byte(P2HELD,2,'p2_native_left')

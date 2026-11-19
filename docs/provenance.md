@@ -143,3 +143,7 @@ qualification ROM, emulator and reproduction commands.
 The newer [ground-speed component](ground-speed-evidence.md) adapts the
 signed velocity merge used by the pinned Sinbad running and friction routines.
 Its negative control uses the prior native movement component.
+
+The [side-tilt dash](side-dash-evidence.md) adapts the pinned Sinbad side
+tilt's windup velocity, acceleration limit, directional commitment and
+recovery friction. The ROM uses the port's existing combat and stage geometry.

@@ -179,8 +179,10 @@ def main():
     p.add_argument('--output',required=True,type=Path)
     p.add_argument('--fast-fall',nargs=3,type=Path,metavar=('MOVEMENT','JAB','AIR'),
                    help='build the fast-fall title using the qualified native component binaries')
+    p.add_argument('--side-dash',action='store_true',help='enable Sinbad side-tilt movement on the corrected ground build')
     a=p.parse_args()
     options={}
+    if a.side_dash and not a.fast_fall:p.error('--side-dash requires --fast-fall MOVEMENT JAB AIR')
     if a.fast_fall:
         movement,jab,air=(path.read_bytes() for path in a.fast_fall)
         # The native jab entry offsets are specific to the qualified component.
@@ -189,8 +191,10 @@ def main():
                 hashlib.sha256(jab).hexdigest()!='30e0e1a84928b05fcf387ce00a8dd10881ebc8c6692a104a925f4a1f68153d6a' or
                 hashlib.sha256(air).hexdigest()!='d7bfcfc9be27610ae74b428589941e462da74f747fa660ad4573964b49b9ad4e'):
             p.error('unexpected native component identity for --fast-fall')
+        if a.side_dash and hashlib.sha256(movement).hexdigest()!=GROUND_CONTROL_SHA:
+            p.error('--side-dash requires the corrected ground component')
         options=dict(native_movement=movement,native_p2=True,native_jab=(jab,0,22),
-                     native_air=air,fast_fall=True)
+                     native_air=air,fast_fall=True,side_dash=a.side_dash)
     data,size=build(jumping=True,combat=True,two_player=True,title=True,**options)
     a.output.parent.mkdir(parents=True,exist_ok=True)
     with a.output.open('xb') as stream:stream.write(data)

@@ -4,9 +4,11 @@ Not Super Tilt Bro is an experimental port of [Super Tilt Bro](https://github.co
 
 **Status: research and feasibility. An opt-in native Mac ROM now starts with a mouse-driven title and enters a keyboard-driven two-character slice with movement, jumping, prototype jabs and damage indicators; there is no playable game yet.** Input, timing, collision, gravity and placeholder art remain experimental, and the reviewed upstream game has not been built and run from its identified source revision. Fast modeled mouse motion can be missed. See [mouse-title evidence](docs/mouse-title-evidence.md), [two-character evidence](docs/two-character-evidence.md), [jab evidence](docs/jab-training-evidence.md), [jump evidence](docs/jump-slice-evidence.md) and [movement evidence](docs/movement-evidence.md).
 
-**Current gameplay build:** `out/ground-speed-title-20261119.rom`. Both
-fighters can fast fall, recover with an aerial jump, and accelerate smoothly to
-exactly two pixels per tick after landing. [Build and run the current ROM](docs/ground-speed-evidence.md).
+**Current gameplay build:** `out/side-dash-title-20261119-a.rom`. Hold a
+direction and press attack to dash into a side tilt. Both fighters accelerate
+through the strike and brake during recovery. The title also includes fast
+fall, aerial jumps and the corrected running speed after landing.
+[Run the side-tilt hit or reproduce the gameplay GIF](docs/side-dash-evidence.md).
 
 A [Windows-compiled 68000 C movement component](docs/windows-native-c-evidence.md)
 also runs in an opt-in title ROM: mouse Start leads to keyboard-driven
