@@ -74,6 +74,16 @@ The side dash adds no RAM field. The emitter ends at 40,528. BootHush build
 The gameplay samples and all 12 full framebuffer sequences and keyboard
 witnesses matched the preceding BootHush build `cc182c2`.
 
+The BootHush RAM-mirroring build
+(`C:/Repos/.task-temp/boothush-ram-wrap-20261119-a/a/boothush-active.exe`,
+SHA-256 `a00fb8b507d79b0f0b88026c2e9cd613a6a7bd78c3aae10858bb5735e4f6db98`)
+also passed the six combat cases. Across its 12 runs, all 384 sample cycles,
+113-byte guest snapshots, framebuffer sequences, keyboard witnesses and the
+GIF matched build `69596d6`. Tilt uses canonical low RAM during these moves.
+This checks for a regression in gameplay and timing. Direct tests of the RAM
+aliases belong to BootHush. The comparison report is
+`out/side-dash-20261119-ram-wrap/comparison.json`.
+
 Find the results under `out/side-dash-20261119-ram-step/` and
 `out/side-dash-jump-ram-step-20261119/`. The gameplay clip
 `out/side-dash-20261119-ram-step/side-dash.gif` crops the actual
