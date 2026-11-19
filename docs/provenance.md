@@ -139,3 +139,7 @@ release condition and the aerial-jump reset from the same pinned source.
 The keyboard adapter, jump integration and graphics remain local port work.
 The [fast-fall receipt](fast-fall-evidence.md) lists the source files,
 qualification ROM, emulator and reproduction commands.
+
+The newer [ground-speed component](ground-speed-evidence.md) adapts the
+signed velocity merge used by the pinned Sinbad running and friction routines.
+Its negative control uses the prior native movement component.

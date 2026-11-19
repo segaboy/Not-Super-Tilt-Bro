@@ -10,6 +10,7 @@ import subprocess
 
 from build_mac_movement import build, P1AIR_USED, P2AIR_USED, JVEL, P2JVEL
 from build_mac_probe import be32, move_byte
+from build_mac_title import GROUND_CONTROL_SHA
 from test_mac_two_player import decode, pixels
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -82,7 +83,8 @@ def main():
     parser.add_argument('--fast-fall', action='store_true', help='also exercise Down releases for both players')
     args = parser.parse_args()
     exe, movement, jab = (p.resolve(strict=True) for p in (args.boothush, args.movement, args.jab))
-    if sha(movement) != MOVEMENT_SHA or sha(jab) != JAB_SHA:
+    supported_ground = (MOVEMENT_SHA, GROUND_CONTROL_SHA) if args.fast_fall else (MOVEMENT_SHA,)
+    if sha(movement) not in supported_ground or sha(jab) != JAB_SHA:
         raise ValueError('unexpected retained native component')
     inputs = [exe, movement, jab, Path(__file__), *sorted((ROOT/'scripts').glob('build_mac_*.py')),
               ROOT/'scripts/test_mac_two_player.py', ROOT/'scripts/test_mac_combat.py']

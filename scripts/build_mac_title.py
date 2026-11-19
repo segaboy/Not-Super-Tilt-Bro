@@ -15,6 +15,7 @@ X,Y=DIAG+64,DIAG+66
 XP,YP,XN,YN,ARMED,STATE,LOSSES=[DIAG+i for i in (68,69,70,71,72,73,74)]
 DISPLAY_X,DISPLAY_Y,DIRTY,IDLE=DIAG+80,DIAG+82,DIAG+84,DIAG+85
 PB=0xefe1fe
+GROUND_CONTROL_SHA='fa66cc4d59cc4320a5dfca39786e8b436cd460d2dadcb1fd2363fed0a370aa0c'
 SCCA,SCCB=0x9ffffa,0x9ffff8
 SCCWA,SCCWB=0xbffffb,0xbffff9
 
@@ -183,10 +184,10 @@ def main():
     if a.fast_fall:
         movement,jab,air=(path.read_bytes() for path in a.fast_fall)
         # The native jab entry offsets are specific to the qualified component.
-        expected=('a65c5fa382bee316b916cd6c6af52c4a2591496aa762c346e784e7a8bca7d25c',
-                  '30e0e1a84928b05fcf387ce00a8dd10881ebc8c6692a104a925f4a1f68153d6a',
-                  'd7bfcfc9be27610ae74b428589941e462da74f747fa660ad4573964b49b9ad4e')
-        if tuple(hashlib.sha256(blob).hexdigest() for blob in (movement,jab,air))!=expected:
+        supported_ground=('a65c5fa382bee316b916cd6c6af52c4a2591496aa762c346e784e7a8bca7d25c',GROUND_CONTROL_SHA)
+        if (hashlib.sha256(movement).hexdigest() not in supported_ground or
+                hashlib.sha256(jab).hexdigest()!='30e0e1a84928b05fcf387ce00a8dd10881ebc8c6692a104a925f4a1f68153d6a' or
+                hashlib.sha256(air).hexdigest()!='d7bfcfc9be27610ae74b428589941e462da74f747fa660ad4573964b49b9ad4e'):
             p.error('unexpected native component identity for --fast-fall')
         options=dict(native_movement=movement,native_p2=True,native_jab=(jab,0,22),
                      native_air=air,fast_fall=True)

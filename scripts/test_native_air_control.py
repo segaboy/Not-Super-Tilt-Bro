@@ -30,7 +30,11 @@ def air_velocity(current, direction):
     return current+(1 if difference > 0 else -1)*min(abs(difference), rate) if difference else current
 
 
-def ground_velocity(current, direction):
+def ground_velocity(current, direction, clamp=False):
+    if clamp:
+        target = direction*512
+        step = 64 if direction else 96
+        return min(target,current+step) if current<target else max(target,current-step)
     if direction:
         return current+64*direction if direction*current < 512 else current
     return (1 if current > 0 else -1)*max(0, abs(current)-96)
@@ -40,6 +44,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ('boothush', 'tool-bin', 'movement', 'jab', 'output'):
         parser.add_argument('--'+name, type=Path, required=True)
+    parser.add_argument('--ground-control',action='store_true',
+                        help='build and qualify corrected ground momentum in the fast-fall title')
     args = parser.parse_args()
     exe, tools, movement, jab = (p.resolve(strict=True) for p in
                                 (args.boothush, args.tool_bin, args.movement, args.jab))
@@ -51,6 +57,8 @@ def main():
               ROOT/'scripts/test_native_aerial_jump.py', ROOT/'scripts/test_mac_two_player.py',
               ROOT/'scripts/test_native_call_preservation.py',
               ROOT/'scripts/test_mac_combat.py', *sorted((ROOT/'scripts').glob('build_mac_*.py'))]
+    if args.ground_control:
+        inputs.extend([ROOT/'guest/sinbad_ground.c', ROOT/'guest/sinbad_movement.h'])
     identities = {str(p): sha(p) for p in inputs}
     out = args.output.resolve();out.mkdir(parents=True, exist_ok=False)
     env = os.environ.copy();env['PATH'] = str(tools)+os.pathsep+env.get('PATH', '')
@@ -65,23 +73,26 @@ def main():
             raise RuntimeError(name+': command failed')
         return result.stdout
 
-    def component(name, replacement=None):
-        folder = out/name;folder.mkdir();selected = source
+    def component(name, replacement=None, ground=False):
+        folder = out/name;folder.mkdir()
+        selected = ROOT/'guest/sinbad_ground.c' if ground else source
+        stem,entry,base = (('ground','sinbad_movement_step','40e000') if ground else
+                           ('air','sinbad_aerial_step','40e400'))
         if replacement:
             text = source.read_text(encoding='utf-8')
             if text.count(replacement[0]) != 1:raise ValueError('component mutation site changed')
             selected = folder/'mutant.c';selected.write_text(text.replace(*replacement), encoding='utf-8')
-        obj, elf, binary = (folder/('air.'+suffix) for suffix in ('o', 'elf', 'bin'))
+        obj, elf, binary = (folder/(stem+'.'+suffix) for suffix in ('o', 'elf', 'bin'))
         invoke([gcc, '-mcpu=68000', '-Wa,-m68000', '-std=c11', '-Os', '-ffreestanding', '-fno-builtin',
                 '-fno-pic', '-fno-pie', '-fno-stack-protector', '-fno-unwind-tables',
                 '-fno-asynchronous-unwind-tables', '-Wall', '-Wextra', '-Werror', '-I', ROOT/'guest',
                 '-c', selected, '-o', obj], name+'-compile')
-        invoke([gcc, '-mcpu=68000', '-nostdlib', '-no-pie', '-Wl,--build-id=none', '-Wl,-Ttext=0x40e400',
-                '-Wl,--entry=sinbad_aerial_step', '-Wl,-Map,'+str(folder/'air.map'), obj, '-o', elf], name+'-link')
+        invoke([gcc, '-mcpu=68000', '-nostdlib', '-no-pie', '-Wl,--build-id=none', '-Wl,-Ttext=0x'+base,
+                '-Wl,--entry='+entry, '-Wl,-Map,'+str(folder/(stem+'.map')), obj, '-o', elf], name+'-link')
         if invoke([nm, '--undefined-only', elf], name+'-undefined').strip():
             raise ValueError('unresolved component symbols')
         symbols = invoke([nm, '--defined-only', '--format=posix', elf], name+'-symbols')
-        if not any(line.split()[:3] == ['sinbad_aerial_step', 'T', '40e400'] for line in symbols.splitlines()):
+        if not any(line.split()[:3] == [entry, 'T', base] for line in symbols.splitlines()):
             raise ValueError('component entry moved')
         invoke([objcopy, '-O', 'binary', elf, binary], name+'-objcopy')
         return binary.read_bytes()
@@ -92,26 +103,27 @@ def main():
                   -8, -7, -6, -1, 0, 1, 6, 7, 8, 127, 128, 129, 255, 256, 257, 263, 264, 512, 32767)
     probe_cases = [(velocity, direction) for velocity in velocities for direction in (-1, 0, 1)]
 
-    def probe(name, component_code):
+    def probe(name, component_code, base=AIR_BASE, cases=probe_cases, oracle=air_velocity):
         e = Asm()
         e.put(bytes.fromhex('46fc2700 13fc004800effffe 13fc005800efe7fe 41f900400000 93c9 703f 22d8 51c8fffc'))
         cursor = 0x2000;e.put(move_long(0x41495201, cursor));cursor += 4
         expected = bytearray(b'AIR\x01')
-        for velocity, direction in probe_cases:
+        for velocity, direction in cases:
             position = 0x8000;e.setword(position, 0xb00);e.setword(velocity, 0xb02)
             for _ in range(6):
                 e.put(bytes.fromhex('2f3c')+be32(direction & 0xffffffff)+bytes.fromhex('4879')+be32(0xb02)+
-                      bytes.fromhex('4879')+be32(0xb00)+bytes.fromhex('4eb9')+be32(AIR_BASE)+bytes.fromhex('4fef000c'))
+                      bytes.fromhex('4879')+be32(0xb00)+bytes.fromhex('4eb9')+be32(base)+bytes.fromhex('4fef000c'))
                 for address in (0xb00, 0xb02):
                     e.word('3039', address);e.word('33c0', cursor);cursor += 2
-                velocity = air_velocity(velocity, direction);position = (position+velocity) & 65535
+                velocity = oracle(velocity, direction);position = (position+velocity) & 65535
                 expected += position.to_bytes(2, 'big')+(velocity & 65535).to_bytes(2, 'big')
         e.setword(0xa55a, cursor);expected += b'\xa5\x5a';e.label('done');e.put(bytes.fromhex('60fe'))
         body = e.finish()
-        if 0x104+len(body) >= 0xe400:raise ValueError('probe exceeded code slot')
+        offset = base-0x400000
+        if 0x104+len(body) >= offset:raise ValueError('probe exceeded code slot')
         image = bytearray(65536);image[:8] = be32(0x4000)+be32(0x400104)
         for vector in range(2, 64):image[vector*4:vector*4+4] = be32(e.labels['done'])
-        image[0x104:0x104+len(body)] = body;image[0xe400:0xe400+len(component_code)] = component_code
+        image[0x104:0x104+len(body)] = body;image[offset:offset+len(component_code)] = component_code
         path = out/(name+'.rom');path.write_bytes(image)
         result = json.loads(invoke([exe, '--machine', 'mac128k', '--rom', path, '--cycles', '4000000',
                                    '--timeout-ms', '20000', '--inspect', f'0x2000:{len(expected)}'], name))
@@ -119,7 +131,7 @@ def main():
         if result['status'] != 'cycle_limit' or raw[:4] != b'AIR\x01' or raw[-2:] != b'\xa5\x5a':
             raise ValueError('component probe did not complete')
         return {'rom_sha256': sha(path), 'matches_oracle': raw == expected, 'result': result,
-                'steps': len(probe_cases)*6, 'observed_sha256': hashlib.sha256(raw).hexdigest()}
+                'steps': len(cases)*6, 'observed_sha256': hashlib.sha256(raw).hexdigest()}
 
     probes = {'baseline': probe('component-probe', code)}
     if not probes['baseline']['matches_oracle']:raise ValueError('native air boundary probe failed')
@@ -128,9 +140,27 @@ def main():
         probes[name] = probe(name+'-probe', component(name+'-mutant', replacement))
         if probes[name]['matches_oracle']:raise ValueError(name+': component mutation escaped')
 
-    kwargs = dict(jumping=True, combat=True, two_player=True, title=True, native_movement=movement.read_bytes(),
-                  native_p2=True, native_jab=(jab.read_bytes(), 0, 22))
+    ground = movement.read_bytes()
+    ground_checks = {}
+    if args.ground_control:
+        ground = component('ground-a',ground=True)
+        if ground != component('ground-b',ground=True):
+            raise ValueError('ground component twins differ')
+        boundaries = (-32768,-1024,-577,-576,-575,-515,-513,-512,-511,-451,-449,-96,-95,
+                      -1,0,1,95,96,449,451,511,512,513,515,575,576,577,1024,32767)
+        samples = [(v,d) for v in boundaries for d in (-1,0,1)]
+        for name,binary in (('ground',ground),('legacy-ground',movement.read_bytes())):
+            ground_checks[name] = probe(name+'-probe',binary,0x40e000,samples,
+                                        lambda v,d: ground_velocity(v,d,clamp=True))
+        if not ground_checks['ground']['matches_oracle'] or ground_checks['legacy-ground']['matches_oracle']:
+            raise ValueError('ground target boundary oracle failed')
+    kwargs = dict(jumping=True, combat=True, two_player=True, title=True, native_movement=ground,
+                  native_p2=True, native_jab=(jab.read_bytes(), 0, 22),fast_fall=args.ground_control)
     image, size = build(**kwargs, native_air=code);rom = out/'air-control.rom';rom.write_bytes(image)
+    if args.ground_control:
+        previous,_ = build(**{**kwargs, 'native_movement':movement.read_bytes()},native_air=code)
+        previous_rom = out/'legacy-fast-fall.rom'
+        previous_rom.write_bytes(previous)
 
     def run(name, events, selected_rom=rom, points=range(34, 66), stop=11000000):
         frames, witness = out/(name+'.pbmseq'), out/(name+'.keyboard')
@@ -183,7 +213,7 @@ def main():
                     elif a['used']:
                         modes.add('aerial_preparation')
                     else:
-                        velocity = ground_velocity(velocity, a['direction']);modes.add('ground')
+                        velocity = ground_velocity(velocity, a['direction'],args.ground_control);modes.add('ground')
                 x = a['x'] if old['phase'] == 5 else max(0x1000, min(0xe000, a['x']+velocity))
                 if (b['horizontal'], b['x']) != (velocity, x):
                     raise ValueError(name+': horizontal oracle mismatch '+str((index, old, new, velocity, x)))
@@ -222,6 +252,16 @@ def main():
         obs = [s['players'][index] for s in cases[name]['observations']]
         if not any(s['state'] == 2 for s in obs) or not any(s['state'] == 0 and 512 <= abs(s['horizontal']) < 576 for s in obs):
             raise ValueError(name+': ground speed did not resume after landing')
+        if args.ground_control:
+            expected = 512 if index==0 else -512
+            if not all(s['horizontal']==expected and s['state']==0 for s in obs[-4:]):
+                raise ValueError(name+': failed to settle at the exact running speed')
+            try:
+                run(name+'-legacy',base,previous_rom,points=range(62,94),stop=13000000)
+            except ValueError as exc:
+                if 'horizontal oracle mismatch' not in str(exc):raise
+            else:
+                raise ValueError(name+': previous ground component escaped the landing check')
     both = sorted(events_by_name['p1_reverse']+[(c+200000, k, d) for c, k, d in events_by_name['p2_reverse']])
     cases['both_reverse'] = run('both_reverse', both)
     cases['both_repeat'] = run('both_repeat', both)
@@ -280,6 +320,10 @@ def main():
               'native_calls': calls, 'bad_callee_mutation': bad_callee,
               'routing_mutation': {'rom_sha256': sha(mutant), 'oracle_rejected': True},
               'limits': 'Source-derived PAL horizontal air control, local keyboard/physics/rendering adapter; no complete match, source-matched NES result or hardware claim.'}
+    if args.ground_control:
+        report['ground_component_sha256'] = hashlib.sha256(ground).hexdigest()
+        report['ground_component_bytes'] = len(ground)
+        report['ground_probes'] = ground_checks
     (out/'report.json').write_text(json.dumps(report, indent=2)+'\n', encoding='utf-8')
     print(json.dumps({'status': 'pass', 'cases': len(cases), 'probe_steps': probes['baseline']['steps'],
                       'rom_sha256': sha(rom), 'report': str(out/'report.json')}))
