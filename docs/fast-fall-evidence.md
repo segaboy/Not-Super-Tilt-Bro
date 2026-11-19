@@ -57,10 +57,30 @@ modeled keyboard observation. Game-derived code and captures stay in Tilt.
 
 | Artifact | Identity |
 | --- | --- |
-| BootHush executable | `3d48d7515d3492ac796d3899ed2c47603d3330e3f0f64352fd29ed6a78284ff4` |
+| Initial BootHush executable | `3d48d7515d3492ac796d3899ed2c47603d3330e3f0f64352fd29ed6a78284ff4` |
+| Updated BootHush executable at `cc182c2311616aff8137ac848c89b1f049acb707` | `5fa45b7542409300b7604606a78c81d4ee95e888a57c592a83d0cec43ce1056e` |
 | CLI-built fast-fall ROM | `f551d8a7cd49ceebc65409f11ec77fe6c371a532caad4cdfde5aa2182123a72f`, 65,536 bytes, emitter ends at 39,944 |
 | Prior native-air title, rebuilt without fast fall | `f28739e256e1426b0849e3ed3c1c6dda01a6c6d39de1b57e9d2e2aaf86a3b00d`, 20 legacy cases passed |
 | Generated GIF | `b923e9a3f2e0f40b4e77fe2361a2163b272770b607d9f53da29ca9ee5d7c9319` |
+
+The updated BootHush executable passed the same 39 cases and four mutation
+controls. Across all 43 runs, all 1,376 sampled cycles, full guest memory
+snapshots and framebuffer captures matched the initial run. The keyboard
+witness files also matched byte for byte. See
+`out/fast-fall-drive-selection-20261119/report.json` and `comparison.json`
+in the same directory.
+
+## Run the move
+
+From `C:/Repos/Not-Super-Tilt-Bro`, run this PowerShell command to see P1
+fast fall while P2 remains in the air. BootHush clicks Start and delivers
+both players' keys. It writes the resulting screen to `out/fast-fall-demo.pbm`.
+The retained build finishes this schedule at VBL 53.
+
+```powershell
+$bh = 'C:/Repos/.task-temp/boothush-drive-selection-20261119-a/a/boothush-active.exe'
+& $bh --machine mac128k --rom out/fast-fall-title-20261119.rom --cycles 7000000 --timeout-ms 20000 --mouse-button 2000000:1 --mouse-button 2400000:0 --key 3500000:2:1 --key 3700000:7:1 --key 4900000:2:0 --key 5100000:7:0 --key 5350000:8:1 --key 5550000:9:1 --key 6100000:8:0 --inspect 0xb00:113 --frame out/fast-fall-demo.pbm
+```
 
 ## Reproduce
 
@@ -72,7 +92,7 @@ Use fresh output directories for each qualification.
 $move = 'C:/Repos/.task-temp/nstb-dual-c-title-20261114-e/a/movement.bin'
 $jab = 'C:/Repos/.task-temp/nstb-recovery-jump-20261116-b/a/jab.bin'
 $air = 'out/air-control-20261117-b/a/air.bin'
-$bh = 'C:/Repos/.task-temp/boothush-floppy-writes-20261118-b/a/boothush-active.exe'
+$bh = 'C:/Repos/.task-temp/boothush-drive-selection-20261119-a/a/boothush-active.exe'
 python -B scripts/build_mac_title.py --fast-fall $move $jab $air --output out/new-fast-fall.rom
 python -B scripts/test_native_aerial_jump.py --boothush $bh --movement $move --jab $jab --air $air --fast-fall --output out/new-fast-fall-check
 python -B scripts/capture_aerial_evidence.py --fast-fall --results out/new-fast-fall-check --output out/new-fast-fall-media

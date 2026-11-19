@@ -41,6 +41,8 @@ In the [fast-fall title ROM](docs/fast-fall-evidence.md), either player can
 release Down in midair to descend five pixels per gameplay tick. In the matched
 BootHush runs, this brought the fighter to the floor 12 VBLs earlier. An unused
 aerial jump can interrupt the descent.
+To run this build, use `out/fast-fall-title-20261119.rom` with the
+[tested BootHush launch command](docs/fast-fall-evidence.md#run-the-move).
 
 [Native title recovery](docs/native-title-recovery-evidence.md) now qualifies
 the existing native-jab and aerial-control profiles after an injected keyboard
