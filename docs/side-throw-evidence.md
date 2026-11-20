@@ -13,7 +13,7 @@ From `C:/Repos/Not-Super-Tilt-Bro`, this headless command clicks Start, moves
 P2 into range, and makes P1 dash right. It captures the impact on VBL 63.
 
 ```powershell
-$bh = 'C:/Repos/.task-temp/boothush-ram-wrap-20261119-a/a/boothush-active.exe'
+$bh = 'C:/Repos/.task-temp/boothush-pc-visits-20261120-b/a/boothush-active.exe'
 & $bh --machine mac128k --rom out/side-throw-title-20261120.rom --cycles 9000000 --timeout-ms 20000 --mouse-button 2000000:1 --mouse-button 2400000:0 --key 3150000:4:1 --key 4800000:4:0 --key 5000000:0:1 --key 5300000:3:1 --key 5600000:3:0 --key 5900000:0:0 --key 6400000:1:1 --capture-series out/side-throw-demo.pbmseq --capture-vbl 63 --capture-memory 0xb00:117
 ```
 
@@ -70,6 +70,24 @@ BootHush `066e85d9d93417c9917c1b12a51f85802163b998`, executable SHA-256
   prevent the second hit on the same tick.
 * The same ROM passed the existing 39 fast-fall/jump scenarios and their
   four defect controls.
+
+The November 20 BootHush executable used in the launch command above
+(`543767ae09f39d330803c05bd34311b3b3f485e53f00ec814c54c82d9c8a329f`)
+repeated all 11 combat and 39 jump scenarios. Comparing the full outputs
+with the preceding RAM-mirroring build gave these results:
+
+| Suite | Emulator runs, including controls | Captured VBL samples |
+| --- | ---: | ---: |
+| Side-tilt combat, interruption and trades | 17 | 544 |
+| Jump and fast fall, including four defect controls | 43 | 1,376 |
+
+Every captured cycle, guest memory snapshot, framebuffer and keyboard
+witness matched across the two executables. All 60 runs also matched at their
+final program counter, cycle count and VBL. The regenerated gameplay GIF
+has the same SHA-256 recorded above. This compares ordinary gameplay with
+the new program-counter tracing feature left off; its trace semantics are
+tested separately in BootHush. The comparison record is
+`out/side-throw-pc-visits-20261120/comparison.json`.
 
 Build and repeat with the [qualified native components](ground-speed-evidence.md):
 
