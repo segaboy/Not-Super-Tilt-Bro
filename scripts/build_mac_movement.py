@@ -27,6 +27,7 @@ P1JAB, P2JAB, P1JAB_NEW, P2JAB_NEW, JAB_PREVIOUS = [DIAG+x for x in (90,94,98,99
 P1SIDE, P1SIDE_CLOCK, P2SIDE, P2SIDE_CLOCK, P1SIDE_NEW, P2SIDE_NEW = [DIAG+x for x in (101,102,103,104,105,106)]
 P1AIR_USED, P2AIR_USED = DIAG+107, DIAG+108
 P1DOWN, P2DOWN, P1FAST, P2FAST = [DIAG+x for x in range(109,113)]
+P1STUN, P2STUN, P1LAUNCH, P2LAUNCH = [DIAG+x for x in range(113,117)]
 FAST_FALL_VELOCITY = -0x500  # PAL Sinbad, translated to local positive-up coordinates
 # Original geometric training target and attack pose; no upstream artwork.
 DUMMY = (0x0ff0,0x1ff8,0x1ff8,0x0ff0,0x03c0,0x0ff0,0x1ff8,0x3ffc,
@@ -75,7 +76,7 @@ def wait_shift(e, name, timeout_target='wait_vbl'):
     e.label(name+'_done')
     e.put(bytes.fromhex('103900eff5fe'))
 
-def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None,fast_fall=False,side_dash=False):
+def build(jumping=False,combat=False,two_player=False,title=False,initial_damage=0,native_movement=None,native_p2=False,native_jab=None,native_air=None,fast_fall=False,side_dash=False,side_throw=False):
     if combat and not jumping:
         raise ValueError('combat experiment requires jumping')
     if two_player and not combat:
@@ -103,6 +104,37 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         raise ValueError('fast fall requires the native-air title')
     if side_dash and not fast_fall:
         raise ValueError('side dash requires the fast-fall title')
+    if side_throw and not side_dash:
+        raise ValueError('side throws require the moving side tilt')
+
+    def require_control(prefix,stun,blocked='pace'):
+        if side_throw:
+            e.if_byte(stun,0,prefix+'_control')
+            e.jump(blocked)
+            e.label(prefix+'_control')
+
+    def stun_tick(prefix,stun,neutral):
+        if side_throw:
+            e.if_byte(stun,0,prefix+'_free')
+            e.put(bytes.fromhex('5339')+be32(stun))
+            e.jump(neutral) # air or ground friction chosen by the movement bridge
+            e.label(prefix+'_free')
+
+    def apply_side_throw(prefix,pending,stun,vel,jvel,jstate,jclock,fast,side,sideclock,sidenew,aclock,jab,jabnew):
+        e.if_byte(pending,0,prefix+'_done')
+        e.if_byte(pending,2,prefix+'_left')
+        e.setword(800,vel)
+        e.jump(prefix+'_vertical')
+        e.label(prefix+'_left')
+        e.setword(-800,vel)
+        e.label(prefix+'_vertical')
+        e.setword(400,jvel)
+        # Use local airborne integration after the short-hop decision.
+        # A thrown fighter has no jump takeoff or short-hop event.
+        e.put(move_byte(13,stun)+move_byte(2,jstate)+move_byte(8,jclock))
+        for addr in (pending,fast,side,sideclock,sidenew,aclock,jab,jabnew):
+            e.put(move_byte(0,addr))
+        e.label(prefix+'_done')
 
     def start_side_speed(prefix,velocity,facing):
         if not side_dash:
@@ -146,6 +178,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label(prefix+'_up')
         e.if_byte(down,0,'pace')
         e.put(move_byte(0,down))
+        require_control(prefix+'_release',P1STUN if down==P1DOWN else P2STUN)
         e.if_byte(state,2,prefix+'_in_air')
         e.jump('pace')
         e.label(prefix+'_in_air')
@@ -182,6 +215,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         if native_air is not None:e.label(prefix+'_airborne')
     def direction_change(label,direction,velocity,address,state,used,facing,side):
         if side_dash:
+            require_control(label+'_heading',P1STUN if side==P1SIDE else P2STUN,label+'_held')
             e.if_byte(side,0,label+'_face')
             e.jump(label+'_held')
             e.label(label+'_face')
@@ -252,9 +286,15 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     def jab_damage(prefix,jab,side,damage):
         # Source-derived PAL jab damage values, applied to this prototype's
         # local collision rule. The 254 saturation is a local display policy.
-        e.if_byte(side,2,prefix+'_stage1') # local prototype side-hit amount
+        e.if_byte(side,2,prefix+('_side' if side_throw else '_stage1'))
         for stage in (1,2,3):e.if_byte(jab,stage,prefix+'_stage'+str(stage))
         e.jump(prefix+'_done')
+        if side_throw:
+            # Defer defender interruption until both players' hits have been checked.
+            e.label(prefix+'_side')
+            facing,pending=(FACING,P2LAUNCH) if side==P1SIDE else (P2FACING,P1LAUNCH)
+            e.put(bytes.fromhex('13f9')+be32(facing)+be32(pending))
+            e.jump(prefix+'_stage2') # one damage
         for stage,amount in ((1,2),(2,1),(3,5)):
             e.label(prefix+'_stage'+str(stage))
             e.put(bytes.fromhex('0c39')+be16(254-amount)+be32(damage))
@@ -314,7 +354,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     for off in range(8,58 if two_player else 38 if combat else 32 if jumping else 24):
         e.put(move_byte(0,DIAG+off))
     if native_jab is not None:
-        for off in range(90,113 if fast_fall else 109):e.put(move_byte(0,DIAG+off))
+        for off in range(90,117 if side_throw else 113 if fast_fall else 109):e.put(move_byte(0,DIAG+off))
     e.setword(0x8000,POS)   # 128 pixels from the left edge of the movement area
     if combat:
         e.put(move_byte(1,FACING))
@@ -376,6 +416,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('jump_down')
         e.if_byte(JBUTTON,1,'pace')
         e.put(move_byte(1,JBUTTON))
+        require_control('p1_jump',P1STUN)
         if combat:
             e.if_byte(ACLOCK,0,'jump_combat_clear')
             e.jump('pace')
@@ -397,6 +438,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('attack_down')
         e.if_byte(ABUTTON,1,'pace')
         e.put(move_byte(1,ABUTTON))
+        require_control('p1_attack',P1STUN)
         e.if_byte(JSTATE,0,'attack_grounded')
         e.jump('pace')
         e.label('attack_grounded')
@@ -431,6 +473,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('p2_jump_down')
         e.if_byte(P2JBUTTON,1,'pace')
         e.put(move_byte(1,P2JBUTTON))
+        require_control('p2_jump',P2STUN)
         e.if_byte(P2ACLOCK,0,'p2_jump_attack_clear')
         e.jump('pace')
         e.label('p2_jump_attack_clear')
@@ -450,6 +493,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         e.label('p2_attack_down')
         e.if_byte(P2ABUTTON,1,'pace')
         e.put(move_byte(1,P2ABUTTON))
+        require_control('p2_attack',P2STUN)
         e.if_byte(P2JSTATE,0,'p2_attack_grounded')
         e.jump('pace')
         e.label('p2_attack_grounded')
@@ -533,6 +577,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
         side_jump_cut('p2_side_jump',P2SIDE,P2SIDE_CLOCK,P2SIDE_NEW,P2ACLOCK,P2ABUTTON,
                       P2MASK,P2JBUTTON,P2JSTATE,P2JCLOCK,P2JCOUNT)
     if combat:
+        stun_tick('p1_stun',P1STUN,'native_neutral')
         e.if_byte(ACLOCK,0,'attack_movement_clear')
         if side_dash:side_motion('p1_dash',P1SIDE,P1SIDE_NEW,P1SIDE_CLOCK,VEL,'integrate','native_neutral')
         # Direction events can set velocity while a jab is active. Keep the
@@ -636,6 +681,7 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
     e.label('store_pos')
     e.word('33c0',POS)
     if two_player:
+        stun_tick('p2_stun',P2STUN,'p2_native_neutral')
         e.if_byte(P2ACLOCK,0,'p2_movement_clear')
         if side_dash:side_motion('p2_dash',P2SIDE,P2SIDE_NEW,P2SIDE_CLOCK,P2VEL,'p2_native_integrate','p2_native_neutral')
         if native_p2:e.setword(0,P2VEL)
@@ -863,6 +909,11 @@ def build(jumping=False,combat=False,two_player=False,title=False,initial_damage
             e.label('p2_attack_end')
             e.put(move_byte(0,P2ACLOCK))
             e.label('p2_attack_done')
+            if side_throw:
+                apply_side_throw('throw1',P1LAUNCH,P1STUN,VEL,JVEL,JSTATE,JCLOCK,P1FAST,
+                                 P1SIDE,P1SIDE_CLOCK,P1SIDE_NEW,ACLOCK,P1JAB,P1JAB_NEW)
+                apply_side_throw('throw2',P2LAUNCH,P2STUN,P2VEL,P2JVEL,P2JSTATE,P2JCLOCK,P2FAST,
+                                 P2SIDE,P2SIDE_CLOCK,P2SIDE_NEW,P2ACLOCK,P2JAB,P2JAB_NEW)
     sprite_address(e,POS,jumping)
     e.word('3039',POS)
     e.put(bytes.fromhex('e048 02400007')) # integer pixel modulo 8

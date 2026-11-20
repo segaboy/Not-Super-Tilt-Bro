@@ -147,3 +147,8 @@ Its negative control uses the prior native movement component.
 The [side-tilt dash](side-dash-evidence.md) adapts the pinned Sinbad side
 tilt's windup velocity, acceleration limit, directional commitment and
 recovery friction. The ROM uses the port's existing combat and stage geometry.
+
+The [side-tilt impact](side-throw-evidence.md) uses the pinned Sinbad
+custom hit routine's fixed force vector and damage, the PAL hitstun formula,
+and the thrown state's use of neutral air friction during hitstun. The
+port's two-player trade and trajectory tests use original keyboard schedules.
